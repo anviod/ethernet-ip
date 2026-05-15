@@ -1,6 +1,6 @@
 package command
 
-import "github.com/loki-os/go-ethernet-ip/types"
+import "github.com/anviod/ethernet-ip/types"
 
 type Command types.UInt
 

@@ -1,6 +1,6 @@
 package packet
 
-import "github.com/loki-os/go-ethernet-ip/types"
+import "github.com/anviod/ethernet-ip/types"
 
 const (
 	ServiceGetInstanceAttributeList types.USInt = 0x55

@@ -1,0 +1,18 @@
+goos: windows
+goarch: amd64
+pkg: github.com/anviod/ethernet-ip/bufferx
+cpu: 13th Gen Intel(R) Core(TM) i5-13500H
+BenchmarkWL_UInt16-16            	72885414	        16.36 ns/op	       2 B/op	       1 allocs/op
+BenchmarkWL_Multiple-16          	19314464	        65.11 ns/op	      16 B/op	       4 allocs/op
+BenchmarkRL_UInt16-16            	30680022	        50.02 ns/op	      50 B/op	       2 allocs/op
+BenchmarkRL_Multiple-16          	15135136	        76.96 ns/op	      56 B/op	       4 allocs/op
+BenchmarkBufferPool-16           	43976984	        29.72 ns/op	       2 B/op	       1 allocs/op
+BenchmarkBufferPool_Reuse-16     	77640253	        17.28 ns/op	       2 B/op	       1 allocs/op
+BenchmarkNewWithCapacity-16      	12369615	        93.36 ns/op	     202 B/op	       4 allocs/op
+BenchmarkNew-16                  	11382553	        89.09 ns/op	     138 B/op	       4 allocs/op
+BenchmarkReaderRL_UInt16-16      	171470557	         7.053 ns/op	       0 B/op	       0 allocs/op
+BenchmarkReaderRL_Multiple-16    	47754351	        29.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBatchEncode-16          	19240574	        66.61 ns/op	     240 B/op	       1 allocs/op
+BenchmarkBatchDecode-16          	 5979528	       176.5 ns/op	     280 B/op	      11 allocs/op
+PASS
+ok  	github.com/anviod/ethernet-ip/bufferx	18.131s

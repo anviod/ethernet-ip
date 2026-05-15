@@ -1,9 +1,9 @@
 package packet
 
 import (
-	"github.com/loki-os/go-ethernet-ip/bufferx"
-	"github.com/loki-os/go-ethernet-ip/types"
-	"github.com/loki-os/go-ethernet-ip/utils"
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/types"
+	"github.com/anviod/ethernet-ip/utils"
 )
 
 type MessageRouterRequest struct {
@@ -46,13 +46,12 @@ type MessageRouterResponse struct {
 }
 
 func (m *MessageRouterResponse) Decode(data []byte) {
-	io := bufferx.New(data)
+	io := bufferx.NewReader(data)
 	io.RL(&m.ReplyService)
 	io.RL(&m.Reserved)
 	io.RL(&m.GeneralStatus)
 	io.RL(&m.SizeOfAdditionalStatus)
 	m.AdditionalStatus = make([]byte, m.SizeOfAdditionalStatus*2)
 	io.RL(&m.AdditionalStatus)
-	m.ResponseData = make([]byte, io.Len())
-	io.RL(&m.ResponseData)
+	m.ResponseData = io.ReadBytes(io.Len())
 }

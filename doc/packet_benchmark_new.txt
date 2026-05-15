@@ -1,0 +1,15 @@
+goos: windows
+goarch: amd64
+pkg: github.com/anviod/ethernet-ip/messages/packet
+cpu: 13th Gen Intel(R) Core(TM) i5-13500H
+BenchmarkPacketEncode-16                   	 3267651	       387.3 ns/op	     160 B/op	       4 allocs/op
+BenchmarkCommonPacketFormatEncode-16       	 2595643	       409.7 ns/op	     418 B/op	      14 allocs/op
+BenchmarkCommonPacketFormatDecode-16       	 6969279	       170.0 ns/op	     102 B/op	       4 allocs/op
+BenchmarkMessageRouterRequestEncode-16     	 7391697	       143.5 ns/op	     138 B/op	       5 allocs/op
+BenchmarkMessageRouterResponseDecode-16    	25177501	        46.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSpecificDataEncode-16             	 2951541	       457.0 ns/op	     420 B/op	      14 allocs/op
+BenchmarkSpecificDataDecode-16             	11387640	       115.9 ns/op	      64 B/op	       2 allocs/op
+BenchmarkNewUCMM-16                        	 5222934	       258.7 ns/op	     234 B/op	       7 allocs/op
+BenchmarkNewCMM-16                         	 2373441	       493.9 ns/op	     512 B/op	      15 allocs/op
+PASS
+ok  	github.com/anviod/ethernet-ip/messages/packet	14.232s

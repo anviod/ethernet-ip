@@ -1,0 +1,30 @@
+goos: windows
+goarch: amd64
+pkg: github.com/anviod/ethernet-ip/bufferx
+cpu: 13th Gen Intel(R) Core(TM) i5-13500H
+BenchmarkWL_UInt16-16           	75749240	        15.61 ns/op	       2 B/op	       1 allocs/op
+BenchmarkWL_UInt16-16           	76844754	        15.70 ns/op	       2 B/op	       1 allocs/op
+BenchmarkWL_UInt16-16           	78404724	        16.18 ns/op	       2 B/op	       1 allocs/op
+BenchmarkWL_Multiple-16         	18941934	        64.59 ns/op	      16 B/op	       4 allocs/op
+BenchmarkWL_Multiple-16         	19252149	        64.06 ns/op	      16 B/op	       4 allocs/op
+BenchmarkWL_Multiple-16         	18110719	        64.67 ns/op	      16 B/op	       4 allocs/op
+BenchmarkRL_UInt16-16           	33504016	        41.52 ns/op	      50 B/op	       2 allocs/op
+BenchmarkRL_UInt16-16           	33288301	        40.06 ns/op	      50 B/op	       2 allocs/op
+BenchmarkRL_UInt16-16           	31156530	        37.91 ns/op	      50 B/op	       2 allocs/op
+BenchmarkRL_Multiple-16         	16710601	        74.21 ns/op	      56 B/op	       4 allocs/op
+BenchmarkRL_Multiple-16         	17308124	        73.94 ns/op	      56 B/op	       4 allocs/op
+BenchmarkRL_Multiple-16         	15994539	        78.13 ns/op	      56 B/op	       4 allocs/op
+BenchmarkBufferPool-16          	42950406	        27.88 ns/op	       2 B/op	       1 allocs/op
+BenchmarkBufferPool-16          	45835465	        28.82 ns/op	       2 B/op	       1 allocs/op
+BenchmarkBufferPool-16          	43245580	        27.83 ns/op	       2 B/op	       1 allocs/op
+BenchmarkBufferPool_Reuse-16    	79307382	        15.96 ns/op	       2 B/op	       1 allocs/op
+BenchmarkBufferPool_Reuse-16    	81742197	        16.27 ns/op	       2 B/op	       1 allocs/op
+BenchmarkBufferPool_Reuse-16    	80833664	        15.91 ns/op	       2 B/op	       1 allocs/op
+BenchmarkNewWithCapacity-16     	14278489	        84.21 ns/op	     202 B/op	       4 allocs/op
+BenchmarkNewWithCapacity-16     	14162851	        96.72 ns/op	     202 B/op	       4 allocs/op
+BenchmarkNewWithCapacity-16     	12730041	        90.75 ns/op	     202 B/op	       4 allocs/op
+BenchmarkNew-16                 	16588354	        83.85 ns/op	     138 B/op	       4 allocs/op
+BenchmarkNew-16                 	12035576	        87.77 ns/op	     138 B/op	       4 allocs/op
+BenchmarkNew-16                 	14254676	        96.74 ns/op	     138 B/op	       4 allocs/op
+PASS
+ok  	github.com/anviod/ethernet-ip/bufferx	62.250s

@@ -1,8 +1,8 @@
 package packet
 
 import (
-	"github.com/loki-os/go-ethernet-ip/bufferx"
-	"github.com/loki-os/go-ethernet-ip/types"
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/types"
 )
 
 type SpecificData struct {
@@ -20,7 +20,7 @@ func (r *SpecificData) Encode() []byte {
 }
 
 func (r *SpecificData) Decode(data []byte) {
-	io := bufferx.New(data)
+	io := bufferx.NewReader(data)
 	io.RL(&r.InterfaceHandle)
 	io.RL(&r.TimeOut)
 	r.Packet = new(CommonPacketFormat)

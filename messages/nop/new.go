@@ -1,9 +1,9 @@
 package nop
 
 import (
-	"github.com/loki-os/go-ethernet-ip/command"
-	"github.com/loki-os/go-ethernet-ip/messages/packet"
-	"github.com/loki-os/go-ethernet-ip/types"
+	"github.com/anviod/ethernet-ip/command"
+	"github.com/anviod/ethernet-ip/messages/packet"
+	"github.com/anviod/ethernet-ip/types"
 )
 
 func New(data []byte) (*packet.Packet, error) {

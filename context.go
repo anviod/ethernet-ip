@@ -1,13 +1,20 @@
-package go_ethernet_ip
+package ethernet_ip
 
 import (
-	"github.com/loki-os/go-ethernet-ip/types"
 	"math/rand"
+	"sync"
 	"time"
+
+	"github.com/anviod/ethernet-ip/types"
+)
+
+var (
+	randMu  sync.Mutex
+	randGen = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 func contextGenerator() types.ULInt {
-	time.Sleep(time.Nanosecond)
-	rand.Seed(time.Now().UnixNano())
-	return types.ULInt(rand.Int63())
+	randMu.Lock()
+	defer randMu.Unlock()
+	return types.ULInt(randGen.Int63())
 }

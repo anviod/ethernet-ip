@@ -1,8 +1,8 @@
 package packet
 
 import (
-	"github.com/loki-os/go-ethernet-ip/bufferx"
-	"github.com/loki-os/go-ethernet-ip/types"
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/types"
 )
 
 func NewCMM(connectionID types.UDInt, sequenceNumber types.UInt, mr *MessageRouterRequest) *CommonPacketFormat {

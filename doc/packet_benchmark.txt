@@ -1,0 +1,33 @@
+goos: windows
+goarch: amd64
+pkg: github.com/anviod/ethernet-ip/messages/packet
+cpu: 13th Gen Intel(R) Core(TM) i5-13500H
+BenchmarkPacketEncode-16                   	 4620987	       251.0 ns/op	     160 B/op	       4 allocs/op
+BenchmarkPacketEncode-16                   	 4755991	       253.3 ns/op	     160 B/op	       4 allocs/op
+BenchmarkPacketEncode-16                   	 4621432	       268.0 ns/op	     160 B/op	       4 allocs/op
+BenchmarkCommonPacketFormatEncode-16       	 3568010	       344.3 ns/op	     418 B/op	      14 allocs/op
+BenchmarkCommonPacketFormatEncode-16       	 3551468	       334.1 ns/op	     418 B/op	      14 allocs/op
+BenchmarkCommonPacketFormatEncode-16       	 3573706	       345.6 ns/op	     418 B/op	      14 allocs/op
+BenchmarkCommonPacketFormatDecode-16       	 3423123	       356.1 ns/op	     164 B/op	      12 allocs/op
+BenchmarkCommonPacketFormatDecode-16       	 3377995	       353.8 ns/op	     164 B/op	      12 allocs/op
+BenchmarkCommonPacketFormatDecode-16       	 3322263	       363.4 ns/op	     164 B/op	      12 allocs/op
+BenchmarkMessageRouterRequestEncode-16     	10676916	       136.7 ns/op	     138 B/op	       5 allocs/op
+BenchmarkMessageRouterRequestEncode-16     	 7158135	       141.5 ns/op	     138 B/op	       5 allocs/op
+BenchmarkMessageRouterRequestEncode-16     	 8256570	       146.0 ns/op	     138 B/op	       5 allocs/op
+BenchmarkMessageRouterResponseDecode-16    	 5457106	       226.2 ns/op	      58 B/op	       7 allocs/op
+BenchmarkMessageRouterResponseDecode-16    	 5130598	       237.3 ns/op	      58 B/op	       7 allocs/op
+BenchmarkMessageRouterResponseDecode-16    	 4995902	       238.7 ns/op	      58 B/op	       7 allocs/op
+BenchmarkSpecificDataEncode-16             	 2784406	       432.3 ns/op	     420 B/op	      14 allocs/op
+BenchmarkSpecificDataEncode-16             	 2377082	       424.2 ns/op	     420 B/op	      14 allocs/op
+BenchmarkSpecificDataEncode-16             	 3020828	       475.4 ns/op	     420 B/op	      14 allocs/op
+BenchmarkSpecificDataDecode-16             	 4148125	       284.4 ns/op	     124 B/op	       8 allocs/op
+BenchmarkSpecificDataDecode-16             	 4541488	       273.4 ns/op	     124 B/op	       8 allocs/op
+BenchmarkSpecificDataDecode-16             	 4480537	       286.4 ns/op	     124 B/op	       8 allocs/op
+BenchmarkNewUCMM-16                        	 5169135	       239.4 ns/op	     234 B/op	       7 allocs/op
+BenchmarkNewUCMM-16                        	 5295523	       236.4 ns/op	     234 B/op	       7 allocs/op
+BenchmarkNewUCMM-16                        	 5278614	       234.6 ns/op	     234 B/op	       7 allocs/op
+BenchmarkNewCMM-16                         	 2185988	       514.5 ns/op	     512 B/op	      15 allocs/op
+BenchmarkNewCMM-16                         	 2532498	       515.4 ns/op	     512 B/op	      15 allocs/op
+BenchmarkNewCMM-16                         	 3003930	       418.8 ns/op	     512 B/op	      15 allocs/op
+PASS
+ok  	github.com/anviod/ethernet-ip/messages/packet	72.419s

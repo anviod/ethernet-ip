@@ -1,4 +1,4 @@
-package go_ethernet_ip
+package ethernet_ip
 
 import (
 	"log"

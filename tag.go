@@ -1,4 +1,4 @@
-package go_ethernet_ip
+package ethernet_ip
 
 import (
 	"bytes"
@@ -6,48 +6,49 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/loki-os/go-ethernet-ip/bufferx"
-	"github.com/loki-os/go-ethernet-ip/messages/packet"
-	"github.com/loki-os/go-ethernet-ip/path"
-	"github.com/loki-os/go-ethernet-ip/types"
 	"math"
 	"strconv"
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/messages/packet"
+	"github.com/anviod/ethernet-ip/path"
+	"github.com/anviod/ethernet-ip/types"
 )
 
 const (
-	NULL   types.UInt = 0x00
-	BOOL   types.UInt = 0xc1
-	SINT   types.UInt = 0xc2
-	INT    types.UInt = 0xc3
-	DINT   types.UInt = 0xc4
-	LINT   types.UInt = 0xc5
-	USINT  types.UInt = 0xc6
-	UINT   types.UInt = 0xc7
-	UDINT  types.UInt = 0xc8
-	ULINT  types.UInt = 0xc9
-	REAL   types.UInt = 0xca
-	LREAL  types.UInt = 0xcb
-	STRING types.UInt = 0xfce
+	NULL    types.UInt = 0x00
+	BOOL    types.UInt = 0xc1
+	SINT    types.UInt = 0xc2
+	INT     types.UInt = 0xc3
+	DINT    types.UInt = 0xc4
+	LINT    types.UInt = 0xc5
+	USINT   types.UInt = 0xc6
+	UINT    types.UInt = 0xc7
+	UDINT   types.UInt = 0xc8
+	ULINT   types.UInt = 0xc9
+	REAL    types.UInt = 0xca
+	LREAL   types.UInt = 0xcb
+	STRING  types.UInt = 0xfce
 	STRING2 types.UInt = 0x8fce
 )
 
 var TypeMap = map[types.UInt]string{
-	NULL:   "NULL",
-	BOOL:   "BOOL",
-	SINT:   "SINT",
-	INT:    "INT",
-	DINT:   "DINT",
-	LINT:   "LINT",
-	USINT:  "USINT",
-	UINT:   "UINT",
-	UDINT:  "UDINT",
-	ULINT:  "ULINT",
-	REAL:   "REAL",
-	LREAL:  "LREAL",
-	STRING: "STRING",
+	NULL:    "NULL",
+	BOOL:    "BOOL",
+	SINT:    "SINT",
+	INT:     "INT",
+	DINT:    "DINT",
+	LINT:    "LINT",
+	USINT:   "USINT",
+	UINT:    "UINT",
+	UDINT:   "UDINT",
+	ULINT:   "ULINT",
+	REAL:    "REAL",
+	LREAL:   "LREAL",
+	STRING:  "STRING",
 	STRING2: "STRING",
 }
 
@@ -89,7 +90,7 @@ func (t *Tag) readRequest() *packet.MessageRouterRequest {
 	io := bufferx.New(nil)
 
 	//Define number of elements to read
-	if length := t.count(); length > 0{
+	if length := t.count(); length > 0 {
 		io.WL(length) //Read all indices of tag
 	} else {
 		io.WL(types.UInt(1)) //read a single element if t.dimXlen are not defined
@@ -103,27 +104,27 @@ func (t *Tag) readRequest() *packet.MessageRouterRequest {
 		), io.Bytes())
 		return mr
 	} else {
-		 //'ANSI Extended Symbolic Segments' need to be used
-		var paths []byte //initialize the 'Request Path'
-		var iinit int //initialize the initial i for the 'Request Path' loop
+		//'ANSI Extended Symbolic Segments' need to be used
+		var paths []byte       //initialize the 'Request Path'
+		var iinit int          //initialize the initial i for the 'Request Path' loop
 		if t.instanceID == 0 { //check if first segment can be replaced by logical segments
 			iinit = 0 //first segment is not able to be logical
 		} else {
-			iinit = 1//first segment is able to be logical. Create first segments
+			iinit = 1 //first segment is able to be logical. Create first segments
 			paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true))
-			paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeInstanceID,t.instanceID,true))
+			paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true))
 		}
 		//Request Path loop:
-		for i:=iinit;i<len(inPaths); i++ { //loop through parts of tag name and add ANSI Ext. Segments to paths for each one.
+		for i := iinit; i < len(inPaths); i++ { //loop through parts of tag name and add ANSI Ext. Segments to paths for each one.
 			startSquareBrackIndex := len(inPaths[i])
 			var eleIds []string
-			if strings.HasSuffix(inPaths[i],"]"){
-				startSquareBrackIndex = strings.Index(inPaths[i],"[")
-				eleIdsStr := inPaths[i][startSquareBrackIndex+1:len(inPaths[i])-1]
-				eleIds = strings.Split(eleIdsStr,",")
+			if strings.HasSuffix(inPaths[i], "]") {
+				startSquareBrackIndex = strings.Index(inPaths[i], "[")
+				eleIdsStr := inPaths[i][startSquareBrackIndex+1 : len(inPaths[i])-1]
+				eleIds = strings.Split(eleIdsStr, ",")
 			}
 			paths = packet.Paths(paths, path.DataBuild(path.DataTypeANSI, []byte(inPaths[i][:startSquareBrackIndex]), true))
-			for _/*i*/, v := range eleIds {
+			for _ /*i*/, v := range eleIds {
 				id, _ := strconv.Atoi(v)
 				paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeMemberID, types.UDInt(id), true))
 			}
@@ -146,7 +147,7 @@ func (t *Tag) readRequest() *packet.MessageRouterRequest {
 
 func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) error {
 	if mr.GeneralStatus > 0 {
-		errorByte := make([]byte , 1)
+		errorByte := make([]byte, 1)
 		errorByte = append(errorByte, byte(mr.GeneralStatus))
 		return errors.New("error code: " + hex.EncodeToString(errorByte))
 	}
@@ -655,7 +656,7 @@ func (tg *TagGroup) Write() error {
 	return nil
 }
 
-func (t *EIPTCP) InitializeTag(name string, tag *Tag)  {
+func (t *EIPTCP) InitializeTag(name string, tag *Tag) {
 	tag.Lock = new(sync.Mutex)
 	tag.TCP = t
 	nameBytes := []byte(name)

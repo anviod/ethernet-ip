@@ -1,3 +1,3 @@
-module github.com/loki-os/go-ethernet-ip
+module github.com/anviod/ethernet-ip
 
 go 1.16

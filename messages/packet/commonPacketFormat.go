@@ -1,8 +1,8 @@
 package packet
 
 import (
-	"github.com/loki-os/go-ethernet-ip/bufferx"
-	"github.com/loki-os/go-ethernet-ip/types"
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/types"
 )
 
 type ItemID types.UInt
@@ -36,11 +36,10 @@ func (i *CommonPacketFormatItem) Encode() []byte {
 	return io.Bytes()
 }
 
-func (i *CommonPacketFormatItem) Decode(io *bufferx.BufferX) {
-	io.RL(&i.TypeID)
-	io.RL(&i.Length)
-	i.Data = make([]byte, i.Length)
-	io.RL(&i.Data)
+func (i *CommonPacketFormatItem) Decode(io *bufferx.Reader) {
+	i.TypeID = ItemID(io.ReadUint16())
+	i.Length = types.UInt(io.ReadUint16())
+	i.Data = io.ReadBytes(int(i.Length))
 }
 
 type CommonPacketFormat struct {
@@ -63,13 +62,16 @@ func (c *CommonPacketFormat) Encode() []byte {
 	return io.Bytes()
 }
 
-func (c *CommonPacketFormat) Decode(io *bufferx.BufferX) {
-	io.RL(&c.ItemCount)
+func (c *CommonPacketFormat) Decode(io *bufferx.Reader) {
+	c.ItemCount = types.UInt(io.ReadUint16())
+	if c.ItemCount > 0 {
+		c.Items = make([]CommonPacketFormatItem, 0, c.ItemCount)
+	}
 
 	for i := types.UInt(0); i < c.ItemCount; i++ {
-		item := &CommonPacketFormatItem{}
+		item := CommonPacketFormatItem{}
 		item.Decode(io)
-		c.Items = append(c.Items, *item)
+		c.Items = append(c.Items, item)
 	}
 }
 

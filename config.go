@@ -1,6 +1,6 @@
-package go_ethernet_ip
+package ethernet_ip
 
-import "github.com/loki-os/go-ethernet-ip/types"
+import "github.com/anviod/ethernet-ip/types"
 
 type Config struct {
 	TCPPort     uint16

@@ -1,10 +1,10 @@
 package registerSession
 
 import (
-	"github.com/loki-os/go-ethernet-ip/bufferx"
-	"github.com/loki-os/go-ethernet-ip/command"
-	"github.com/loki-os/go-ethernet-ip/messages/packet"
-	"github.com/loki-os/go-ethernet-ip/types"
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/command"
+	"github.com/anviod/ethernet-ip/messages/packet"
+	"github.com/anviod/ethernet-ip/types"
 )
 
 type specificData struct {
