@@ -20,8 +20,8 @@ import (
 )
 
 var (
-	localRandMu   sync.Mutex
-	localRandGen  = rand.New(rand.NewSource(0))
+	localRandMu  sync.Mutex
+	localRandGen = rand.New(rand.NewSource(0))
 )
 
 func randIntn(n int) int {
@@ -33,7 +33,10 @@ func randIntn(n int) int {
 func (t *EIPTCP) request(packet *packet.Packet) (*packet.Packet, error) {
 	t.requestLock.Lock()
 	defer t.requestLock.Unlock()
+	return t.requestLocked(packet)
+}
 
+func (t *EIPTCP) requestLocked(packet *packet.Packet) (*packet.Packet, error) {
 	if t.tcpConn == nil {
 		return nil, errors.New("connect first")
 	}
@@ -44,20 +47,42 @@ func (t *EIPTCP) request(packet *packet.Packet) (*packet.Packet, error) {
 	}
 
 	if err := t.write(b); err != nil {
-		return nil, err
+		if err := t.reconnectLocked(); err != nil {
+			return nil, err
+		}
+		if err := t.write(b); err != nil {
+			return nil, err
+		}
 	}
 
-	return t.read()
+	resp, err := t.read()
+	if err != nil {
+		if err := t.reconnectLocked(); err != nil {
+			return nil, err
+		}
+		if err := t.write(b); err != nil {
+			return nil, err
+		}
+		return t.read()
+	}
+
+	return resp, nil
 }
 
 func (t *EIPTCP) RegisterSession() error {
+	t.requestLock.Lock()
+	defer t.requestLock.Unlock()
+	return t.registerSessionLocked()
+}
+
+func (t *EIPTCP) registerSessionLocked() error {
 	ctx := contextGenerator()
 	requestPacket, err := registerSession.New(ctx)
 	if err != nil {
 		return err
 	}
 
-	responsePacket, err := t.request(requestPacket)
+	responsePacket, err := t.requestLocked(requestPacket)
 	if err != nil {
 		return err
 	}
@@ -153,10 +178,35 @@ func (t *EIPTCP) SendUnitData(cpf *packet.CommonPacketFormat) (*packet.SpecificD
 	}
 
 	spd, err := sendUnitData.Decode(responsePacket)
-	if spd != nil {
-		spd.Packet.Items[1].Data = spd.Packet.Items[1].Data[2:]
+	if err != nil {
+		return nil, err
 	}
-	return spd, err
+	if spd != nil && spd.Packet != nil {
+		itemIdx := findCommonPacketFormatDataItem(spd.Packet.Items)
+		if itemIdx < 0 {
+			return spd, errors.New("unexpected specific data packet item count")
+		}
+		item := &spd.Packet.Items[itemIdx]
+		if len(item.Data) >= 2 {
+			item.Data = item.Data[2:]
+		}
+	}
+	return spd, nil
+}
+
+func findCommonPacketFormatDataItem(items []packet.CommonPacketFormatItem) int {
+	if len(items) == 0 {
+		return -1
+	}
+	if len(items) == 1 {
+		return 0
+	}
+	for i := range items {
+		if items[i].TypeID == packet.ItemIDUnconnectedMessage || items[i].TypeID == packet.ItemIDConnectedTransportPacket {
+			return i
+		}
+	}
+	return 1
 }
 
 func (t *EIPTCP) Send(mr *packet.MessageRouterRequest) (*packet.SpecificData, error) {
@@ -205,8 +255,14 @@ func (t *EIPTCP) ForwardOpen() error {
 		return err
 	}
 
+	itemIdx := findCommonPacketFormatDataItem(sd.Packet.Items)
+	if itemIdx < 0 {
+		return errors.New("unexpected specific data packet item count")
+	}
+	item := &sd.Packet.Items[itemIdx]
+
 	rmr := &packet.MessageRouterResponse{}
-	rmr.Decode(sd.Packet.Items[1].Data)
+	rmr.Decode(item.Data)
 	io1 := bufferx.New(rmr.ResponseData)
 	io1.RL(&t.connID)
 	t.established = true
@@ -248,8 +304,14 @@ func (t *EIPTCP) ForwardOpenLarge() error {
 		return err
 	}
 
+	itemIdx := findCommonPacketFormatDataItem(sd.Packet.Items)
+	if itemIdx < 0 {
+		return errors.New("unexpected specific data packet item count")
+	}
+	item := &sd.Packet.Items[itemIdx]
+
 	rmr := &packet.MessageRouterResponse{}
-	rmr.Decode(sd.Packet.Items[1].Data)
+	rmr.Decode(item.Data)
 	io1 := bufferx.New(rmr.ResponseData)
 	io1.RL(&t.connID)
 	t.established = true

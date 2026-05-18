@@ -1,0 +1,654 @@
+package ethernet_ip
+
+import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"math"
+	"testing"
+
+	"github.com/anviod/ethernet-ip/bufferx"
+	"github.com/anviod/ethernet-ip/messages/packet"
+	"github.com/anviod/ethernet-ip/path"
+)
+
+type ProtocolVerifier struct {
+	conn *EIPTCP
+}
+
+func NewProtocolVerifier(conn *EIPTCP) *ProtocolVerifier {
+	return &ProtocolVerifier{conn: conn}
+}
+
+type TestResult struct {
+	Name    string
+	Passed  bool
+	Message string
+	Value   interface{}
+}
+
+func dialForTest(t *testing.T) *EIPTCP {
+	conn, err := NewTCP("127.0.0.1", nil)
+	if err != nil {
+		t.Skipf("跳过测试: 无法创建TCP连接: %v", err)
+	}
+	if err := conn.Connect(); err != nil {
+		t.Skipf("跳过测试: 无法连接到模拟器: %v", err)
+	}
+	return conn
+}
+
+func (pv *ProtocolVerifier) verifySession() TestResult {
+	fmt.Println("\n[验证] Session 注册")
+
+	conn := pv.conn
+	if conn == nil || !conn.established {
+		return TestResult{Name: "Session注册", Passed: false, Message: "连接未建立"}
+	}
+
+	fmt.Printf("✓ Session 注册成功: 0x%08X\n", conn.session)
+	return TestResult{Name: "Session注册", Passed: true, Message: fmt.Sprintf("Session: 0x%08X", conn.session)}
+}
+
+func (pv *ProtocolVerifier) verifyIdentity() []TestResult {
+	fmt.Println("\n[验证] Identity Object")
+	results := []TestResult{}
+
+	identity, err := pv.conn.ListIdentity()
+	if err != nil {
+		fmt.Printf("✗ Identity 查询失败: %v\n", err)
+		results = append(results, TestResult{Name: "Identity查询", Passed: false, Message: err.Error()})
+		return results
+	}
+
+	if len(identity.Items) == 0 {
+		fmt.Printf("✗ Identity 没有项目\n")
+		results = append(results, TestResult{Name: "Identity查询", Passed: false, Message: "没有项目"})
+		return results
+	}
+
+	item := identity.Items[0]
+	fmt.Printf("✓ 供应商ID: %d\n", item.VendorID)
+	results = append(results, TestResult{Name: "供应商ID", Passed: true, Value: item.VendorID})
+
+	fmt.Printf("✓ 设备类型: %d\n", item.DeviceType)
+	results = append(results, TestResult{Name: "设备类型", Passed: true, Value: item.DeviceType})
+
+	fmt.Printf("✓ 产品代码: %d\n", item.ProductCode)
+	results = append(results, TestResult{Name: "产品代码", Passed: true, Value: item.ProductCode})
+
+	fmt.Printf("✓ 产品名称: %s\n", string(item.ProductName))
+	results = append(results, TestResult{Name: "设备名称", Passed: true, Value: string(item.ProductName)})
+
+	fmt.Printf("✓ 产品序列号: 0x%08X\n", item.SerialNumber)
+	results = append(results, TestResult{Name: "产品序列号", Passed: true, Value: item.SerialNumber})
+
+	return results
+}
+
+func (pv *ProtocolVerifier) verifyDataTypes() []TestResult {
+	fmt.Println("\n[验证] 数据类型支持")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	type testCase struct {
+		tagName string
+		tagType string
+		readFn  func(*Tag) interface{}
+	}
+
+	tests := []testCase{
+		{"Program:MainProgram.BoolTag", "BOOL", func(t *Tag) interface{} { return t.Bool() }},
+		{"Program:MainProgram.SintTag", "SINT", func(t *Tag) interface{} { return t.Int8() }},
+		{"Program:MainProgram.IntTag", "INT", func(t *Tag) interface{} { return t.Int16() }},
+		{"Program:MainProgram.DintTag", "DINT", func(t *Tag) interface{} { return t.Int32() }},
+		{"Program:MainProgram.LintTag", "LINT", func(t *Tag) interface{} { return t.Int64() }},
+		{"Program:MainProgram.UsintTag", "USINT", func(t *Tag) interface{} { return t.UInt8() }},
+		{"Program:MainProgram.UintTag", "UINT", func(t *Tag) interface{} { return t.UInt16() }},
+		{"Program:MainProgram.UdintTag", "UDINT", func(t *Tag) interface{} { return t.UInt32() }},
+		{"Program:MainProgram.UlintTag", "ULINT", func(t *Tag) interface{} { return t.UInt64() }},
+		{"Program:MainProgram.RealTag", "REAL", func(t *Tag) interface{} { return t.Float32() }},
+		{"Program:MainProgram.LrealTag", "LREAL", func(t *Tag) interface{} { return t.Float64() }},
+		{"Program:MainProgram.StringTag", "STRING", func(t *Tag) interface{} { return t.String() }},
+	}
+
+	for _, tc := range tests {
+		tag := new(Tag)
+		err := conn.InitializeTag(tc.tagName, tag)
+		if err != nil {
+			fmt.Printf("✗ %s (%s): 初始化失败 - %v\n", tc.tagName, tc.tagType, err)
+			results = append(results, TestResult{Name: tc.tagType, Passed: false, Message: err.Error()})
+			continue
+		}
+
+		err = tag.Read()
+		if err != nil {
+			fmt.Printf("✗ %s (%s): 读取失败 - %v\n", tc.tagName, tc.tagType, err)
+			results = append(results, TestResult{Name: tc.tagType, Passed: false, Message: err.Error()})
+			continue
+		}
+
+		value := tc.readFn(tag)
+		fmt.Printf("✓ %s (%s): %v\n", tc.tagName, tc.tagType, value)
+		results = append(results, TestResult{Name: tc.tagType, Passed: true, Value: value})
+	}
+
+	return results
+}
+
+func (pv *ProtocolVerifier) verifyTagRead() []TestResult {
+	fmt.Println("\n[验证] Tag 读取")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	tag := new(Tag)
+	err := conn.InitializeTag("Program:MainProgram.IntTag", tag)
+	if err != nil {
+		fmt.Printf("✗ Tag初始化失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagRead", Passed: false, Message: err.Error()})
+		return results
+	}
+
+	err = tag.Read()
+	if err != nil {
+		fmt.Printf("✗ Tag读取失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagRead", Passed: false, Message: err.Error()})
+		return results
+	}
+
+	value := tag.Int16()
+	fmt.Printf("✓ INT Tag 值: %d\n", value)
+	results = append(results, TestResult{Name: "TagRead", Passed: true, Value: value})
+
+	tag = new(Tag)
+	conn.InitializeTag("Program:MainProgram.RealTag", tag)
+	if err := tag.Read(); err == nil {
+		floatVal := tag.Float32()
+		fmt.Printf("✓ REAL Tag 值: %f\n", floatVal)
+		results = append(results, TestResult{Name: "TagReadFloat", Passed: true, Value: floatVal})
+	} else {
+		fmt.Printf("✗ REAL Tag 读取失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagReadFloat", Passed: false, Message: err.Error()})
+	}
+
+	tag = new(Tag)
+	conn.InitializeTag("Program:MainProgram.StringTag", tag)
+	if err := tag.Read(); err == nil {
+		strVal := tag.String()
+		fmt.Printf("✓ STRING Tag 值: %s\n", strVal)
+		results = append(results, TestResult{Name: "TagReadString", Passed: true, Value: strVal})
+	} else {
+		fmt.Printf("✗ STRING Tag 读取失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagReadString", Passed: false, Message: err.Error()})
+	}
+
+	return results
+}
+
+func (pv *ProtocolVerifier) verifyTagWrite() []TestResult {
+	fmt.Println("\n[验证] Tag 写入")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	tag := new(Tag)
+	err := conn.InitializeTag("Program:MainProgram.IntTag", tag)
+	if err != nil {
+		results = append(results, TestResult{Name: "TagWrite", Passed: false, Message: err.Error()})
+		return results
+	}
+
+	if err := tag.Read(); err != nil {
+		results = append(results, TestResult{Name: "TagWrite", Passed: false, Message: fmt.Sprintf("读取原始值失败: %v", err)})
+		return results
+	}
+
+	origValue := tag.Int16()
+
+	tag.SetInt32(12345)
+	err = tag.Write()
+	if err != nil {
+		fmt.Printf("✗ Tag写入失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagWrite", Passed: false, Message: err.Error()})
+		return results
+	}
+	fmt.Printf("✓ INT Tag 写入成功: 12345\n")
+
+	tag.Read()
+	newValue := tag.Int16()
+	if newValue == 12345 {
+		fmt.Printf("✓ INT Tag 写入验证成功: %d\n", newValue)
+		results = append(results, TestResult{Name: "TagWrite", Passed: true, Value: newValue})
+	} else {
+		fmt.Printf("✗ INT Tag 写入验证失败: 预期=12345, 实际=%d\n", newValue)
+		results = append(results, TestResult{Name: "TagWrite", Passed: false, Message: fmt.Sprintf("预期=%d, 实际=%d", 12345, newValue)})
+	}
+
+	tag.SetInt32(int32(origValue))
+	tag.Write()
+
+	tag.Read()
+	restoredValue := tag.Int16()
+	if restoredValue == origValue {
+		fmt.Printf("✓ INT Tag 值恢复成功: %d\n", restoredValue)
+	}
+
+	return results
+}
+
+func (pv *ProtocolVerifier) verifyErrorHandling() []TestResult {
+	fmt.Println("\n[验证] 错误处理")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	tag := new(Tag)
+	err := conn.InitializeTag("NotExistTag", tag)
+	if err == nil {
+		err = tag.Read()
+	}
+	if err != nil {
+		fmt.Printf("✓ 不存在的Tag正确返回错误: %v\n", err)
+		results = append(results, TestResult{Name: "ErrorHandling", Passed: true, Message: err.Error()})
+	} else {
+		fmt.Printf("✗ 不存在的Tag未返回错误\n")
+		results = append(results, TestResult{Name: "ErrorHandling", Passed: false, Message: "未返回错误"})
+	}
+
+	return results
+}
+
+func (pv *ProtocolVerifier) verifyTagGroup() []TestResult {
+	fmt.Println("\n[验证] TagGroup 批量操作")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	tg := NewTagGroup(nil)
+
+	tags := []string{
+		"Program:MainProgram.IntTag",
+		"Program:MainProgram.DintTag",
+		"Program:MainProgram.RealTag",
+	}
+
+	for _, name := range tags {
+		tag := new(Tag)
+		if err := conn.InitializeTag(name, tag); err != nil {
+			fmt.Printf("✗ Tag初始化失败 %s: %v\n", name, err)
+			continue
+		}
+		if err := tag.Read(); err != nil {
+			fmt.Printf("✗ Tag读取失败 %s: %v\n", name, err)
+			continue
+		}
+		tg.Add(tag)
+	}
+
+	if len(tg.tags) == 0 {
+		fmt.Printf("✗ 没有有效的Tag可读取\n")
+		results = append(results, TestResult{Name: "TagGroupRead", Passed: false, Message: "没有有效的Tag"})
+		return results
+	}
+
+	err := tg.Read()
+	if err != nil {
+		fmt.Printf("✗ TagGroup.Read 失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagGroupRead", Passed: false, Message: err.Error()})
+		return results
+	}
+
+	fmt.Printf("✓ TagGroup.Read 成功, 读取了 %d 个Tag\n", len(tg.tags))
+	results = append(results, TestResult{Name: "TagGroupRead", Passed: true, Value: len(tg.tags)})
+
+	return results
+}
+
+func (pv *ProtocolVerifier) RunAllTests() []TestResult {
+	allResults := []TestResult{}
+
+	allResults = append(allResults, pv.verifySession())
+	allResults = append(allResults, pv.verifyIdentity()...)
+	allResults = append(allResults, pv.verifyDataTypes()...)
+	allResults = append(allResults, pv.verifyTagRead()...)
+	allResults = append(allResults, pv.verifyTagWrite()...)
+	allResults = append(allResults, pv.verifyErrorHandling()...)
+	allResults = append(allResults, pv.verifyTagGroup()...)
+
+	return allResults
+}
+
+func TestProtocolVerifier_Integration(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.RunAllTests()
+
+	passed := 0
+	failed := 0
+	for _, r := range results {
+		if r.Passed {
+			passed++
+		} else {
+			failed++
+		}
+	}
+
+	fmt.Printf("\n========================================\n")
+	fmt.Printf("验证结果汇总: 通过=%d, 失败=%d\n", passed, failed)
+	fmt.Printf("========================================\n")
+
+	if failed > 0 {
+		t.Errorf("%d 个测试失败", failed)
+	}
+}
+
+func TestProtocolVerifier_Session(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	result := pv.verifySession()
+
+	if !result.Passed {
+		t.Errorf("Session验证失败: %s", result.Message)
+	}
+}
+
+func TestProtocolVerifier_Identity(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyIdentity()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("Identity验证 %s 失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestProtocolVerifier_DataTypes(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyDataTypes()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("数据类型 %s 验证失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestProtocolVerifier_TagRead(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyTagRead()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("Tag读取 %s 验证失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestProtocolVerifier_TagWrite(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyTagWrite()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("Tag写入 %s 验证失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestProtocolVerifier_ErrorHandling(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyErrorHandling()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("错误处理 %s 验证失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestProtocolVerifier_TagGroup(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyTagGroup()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("TagGroup %s 验证失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestBufferX_Protocol(t *testing.T) {
+	t.Run("LittleEndian写入读取", func(t *testing.T) {
+		buf := bufferx.New(nil)
+		buf.WL(int16(12345))
+		buf.WL(int32(67890))
+		buf.WL(float32(3.14159))
+
+		if buf.Error() != nil {
+			t.Fatalf("写入错误: %v", buf.Error())
+		}
+
+		var v1 int16
+		var v2 int32
+		var v3 float32
+
+		rbuf := bufferx.New(buf.Bytes())
+		rbuf.RL(&v1)
+		rbuf.RL(&v2)
+		rbuf.RL(&v3)
+
+		if rbuf.Error() != nil {
+			t.Fatalf("读取错误: %v", rbuf.Error())
+		}
+
+		if v1 != 12345 {
+			t.Errorf("INT16: 预期 12345, 实际 %d", v1)
+		}
+		if v2 != 67890 {
+			t.Errorf("INT32: 预期 67890, 实际 %d", v2)
+		}
+		if math.Abs(float64(v3)-3.14159) > 1e-5 {
+			t.Errorf("FLOAT: 预期 3.14159, 实际 %f", v3)
+		}
+	})
+
+	t.Run("BigEndian写入读取", func(t *testing.T) {
+		buf := bufferx.New(nil)
+		buf.WB(uint16(0x1234))
+		buf.WB(uint32(0x12345678))
+
+		if buf.Error() != nil {
+			t.Fatalf("写入错误: %v", buf.Error())
+		}
+
+		var v1 uint16
+		var v2 uint32
+
+		rbuf := bufferx.New(buf.Bytes())
+		rbuf.RB(&v1)
+		rbuf.RB(&v2)
+
+		if rbuf.Error() != nil {
+			t.Fatalf("读取错误: %v", rbuf.Error())
+		}
+
+		if v1 != 0x1234 {
+			t.Errorf("UINT16: 预期 0x1234, 实际 0x%x", v1)
+		}
+		if v2 != 0x12345678 {
+			t.Errorf("UINT32: 预期 0x12345678, 实际 0x%x", v2)
+		}
+	})
+
+	t.Run("字节数组读写", func(t *testing.T) {
+		data := []byte{0x01, 0x02, 0x03, 0x04, 0x05}
+		buf := bufferx.New(nil)
+		buf.WL(data)
+
+		if buf.Error() != nil {
+			t.Fatalf("写入错误: %v", buf.Error())
+		}
+
+		result := make([]byte, len(data))
+		rbuf := bufferx.New(buf.Bytes())
+		rbuf.RL(&result)
+
+		if rbuf.Error() != nil {
+			t.Fatalf("读取错误: %v", rbuf.Error())
+		}
+
+		if !bytes.Equal(data, result) {
+			t.Errorf("字节数组: 预期 %v, 实际 %v", data, result)
+		}
+	})
+
+	t.Run("边界检查", func(t *testing.T) {
+		buf := bufferx.New([]byte{0x01, 0x02})
+		var v uint32
+
+		buf.RL(&v)
+
+		if buf.Error() == nil {
+			t.Errorf("应该返回边界错误")
+		}
+	})
+}
+
+func TestPacket_Protocol(t *testing.T) {
+	t.Run("MessageRouterRequest编码", func(t *testing.T) {
+		mr := packet.NewMessageRouter(0x4C, []byte{0x20, 0x6B, 0x24, 0x01}, []byte{0x01, 0x00})
+
+		encoded := mr.Encode()
+
+		if len(encoded) == 0 {
+			t.Errorf("编码结果为空")
+		}
+
+		fmt.Printf("MessageRouterRequest 编码: %s\n", hex.EncodeToString(encoded))
+	})
+
+	t.Run("MessageRouterResponse解码", func(t *testing.T) {
+		respData := []byte{
+			0x4C, 0x00,
+			0x00, 0x00,
+			0x00, 0x00,
+			0x00, 0x00,
+			0x02, 0x00,
+			0x01, 0x00,
+			0xC3, 0x00,
+			0x01, 0x00,
+			0x39, 0x30,
+		}
+
+		mr := &packet.MessageRouterResponse{}
+		mr.Decode(respData)
+
+		if mr.GeneralStatus != 0 {
+			t.Errorf("预期状态 0, 实际 0x%x", mr.GeneralStatus)
+		}
+
+		fmt.Printf("MessageRouterResponse 解码: ReplyService=0x%02X, Status=0x%02X\n", mr.ReplyService, mr.GeneralStatus)
+	})
+
+	t.Run("CPF包构造", func(t *testing.T) {
+		mr := packet.NewMessageRouter(0x4C, []byte{0x20, 0x6B, 0x24, 0x01}, []byte{0x01, 0x00})
+		cm := packet.NewCMM(0x12345678, 0x0001, mr)
+
+		encoded := cm.Encode()
+
+		fmt.Printf("CMM 编码: %s\n", hex.EncodeToString(encoded))
+
+		if len(encoded) == 0 {
+			t.Errorf("CMM编码结果为空")
+		}
+	})
+}
+
+func TestPath_Protocol(t *testing.T) {
+	t.Run("逻辑路径构建", func(t *testing.T) {
+		pathData := path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true)
+		fmt.Printf("ClassID 路径: %s\n", hex.EncodeToString(pathData))
+
+		pathData = path.LogicalBuild(path.LogicalTypeInstanceID, 0x01, true)
+		fmt.Printf("InstanceID 路径: %s\n", hex.EncodeToString(pathData))
+	})
+
+	t.Run("数据路径构建", func(t *testing.T) {
+		pathData := path.DataBuild(path.DataTypeANSI, []byte("TagName"), true)
+		fmt.Printf("Symbolic Tag 路径: %s\n", hex.EncodeToString(pathData))
+	})
+}
+
+func TestEndianess(t *testing.T) {
+	t.Run("LittleEndian字节序", func(t *testing.T) {
+		value := uint32(0x12345678)
+		buf := new(bytes.Buffer)
+		binary.Write(buf, binary.LittleEndian, value)
+
+		expected := []byte{0x78, 0x56, 0x34, 0x12}
+		if !bytes.Equal(buf.Bytes(), expected) {
+			t.Errorf("LittleEndian: 预期 %v, 实际 %v", expected, buf.Bytes())
+		}
+	})
+
+	t.Run("BigEndian字节序", func(t *testing.T) {
+		value := uint32(0x12345678)
+		buf := new(bytes.Buffer)
+		binary.Write(buf, binary.BigEndian, value)
+
+		expected := []byte{0x12, 0x34, 0x56, 0x78}
+		if !bytes.Equal(buf.Bytes(), expected) {
+			t.Errorf("BigEndian: 预期 %v, 实际 %v", expected, buf.Bytes())
+		}
+	})
+}

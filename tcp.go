@@ -24,6 +24,9 @@ type EIPTCP struct {
 
 	requestLock *sync.Mutex
 	readBuf     []byte
+
+	reconnectAttempts int
+	maxReconnect      int
 }
 
 // NewTCP creates a new EIPTCP instance
@@ -38,10 +41,11 @@ func NewTCP(address string, config *Config) (*EIPTCP, error) {
 	}
 
 	return &EIPTCP{
-		requestLock: new(sync.Mutex),
-		config:      config,
-		tcpAddr:     tcpAddress,
-		readBuf:     make([]byte, 1024*64),
+		requestLock:  new(sync.Mutex),
+		config:       config,
+		tcpAddr:      tcpAddress,
+		readBuf:      make([]byte, 1024*64),
+		maxReconnect: 3,
 	}, nil
 }
 
@@ -49,6 +53,57 @@ func (t *EIPTCP) reset() {
 	t.established = false
 	t.connID = 0
 	t.seqNum = 0
+	t.reconnectAttempts = 0
+}
+
+func (t *EIPTCP) reconnect() error {
+	t.requestLock.Lock()
+	defer t.requestLock.Unlock()
+	return t.reconnectLocked()
+}
+
+func (t *EIPTCP) reconnectLocked() error {
+	if t.reconnectAttempts >= t.maxReconnect {
+		return errors.New("max reconnect attempts exceeded")
+	}
+
+	if t.tcpConn != nil {
+		t.tcpConn.Close()
+		t.tcpConn = nil
+	}
+
+	attempts := t.reconnectAttempts
+	t.reset()
+	t.reconnectAttempts = attempts
+
+	tcpConnection, err := net.DialTCP("tcp", nil, t.tcpAddr)
+	if err != nil {
+		t.reconnectAttempts++
+		return err
+	}
+
+	err = tcpConnection.SetKeepAlive(true)
+	if err != nil {
+		t.reconnectAttempts++
+		tcpConnection.Close()
+		return err
+	}
+
+	t.tcpConn = tcpConnection
+
+	if err := t.registerSessionLocked(); err != nil {
+		t.reconnectAttempts++
+		return err
+	}
+
+	t.reconnectAttempts = 0
+	return nil
+}
+
+func (t *EIPTCP) IsConnected() bool {
+	t.requestLock.Lock()
+	defer t.requestLock.Unlock()
+	return t.tcpConn != nil && t.established
 }
 
 func (t *EIPTCP) Connect() error {
@@ -120,8 +175,13 @@ func (t *EIPTCP) parse(buf []byte) (*packet.Packet, error) {
 		return nil, errors.New("wrong packet with non-zero option")
 	}
 	if int(_packet.Length) != reader.Len() {
-		return nil, errors.New("wrong packet length")
+		if _packet.Length == 0 && reader.Len() > 0 {
+			_packet.Length = types.UInt(reader.Len())
+		} else {
+			return nil, errors.New("wrong packet length")
+		}
 	}
+
 	_packet.SpecificData = reader.ReadBytes(reader.Len())
 	if reader.Error() != nil {
 		return nil, reader.Error()
@@ -162,6 +222,10 @@ func (t *EIPTCP) Close() error {
 	}
 
 	_ = t.UnRegisterSession()
+
+	if t.tcpConn == nil {
+		return nil
+	}
 
 	err := t.tcpConn.Close()
 	t.tcpConn = nil

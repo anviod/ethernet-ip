@@ -76,38 +76,52 @@ func Init(ip string) {
 	// actually, I don't have abplc device to test after business done.
 	conn.ForwardOpen()
 	var tag = new(Tag)
-	conn.InitializeTag("OP.UDT_Alarm.DINT_065_096", tag)
+	if err := conn.InitializeTag("OP.UDT_Alarm.DINT_065_096", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	log.Println(tag.GetValue())
 
 	tag = new(Tag)
-	conn.InitializeTag("wowtag", tag)
+	if err := conn.InitializeTag("wowtag", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	log.Println(tag.GetValue())
 
 	tag = new(Tag)
-	conn.InitializeTag("wotag[0]", tag)
+	if err := conn.InitializeTag("wotag[0]", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	log.Println(tag.GetValue())
 
 	tag = new(Tag)
-	conn.InitializeTag("wotag[1]", tag)
+	if err := conn.InitializeTag("wotag[1]", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	log.Println(tag.GetValue())
 
 	tag = new(Tag)
-	conn.InitializeTag("OP_Format[0].REAL_Performance[0]", tag)
+	if err := conn.InitializeTag("OP_Format[0].REAL_Performance[0]", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	//log.Println("Type: ", tag.Type)
 	log.Println(tag.GetValue())
 
 	tag = new(Tag)
-	conn.InitializeTag("wwwtag[1,0,1]", tag)
+	if err := conn.InitializeTag("wwwtag[1,0,1]", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	log.Println(tag.GetValue())
 
 	tag = new(Tag)
-	conn.InitializeTag("stringtag", tag)
+	if err := conn.InitializeTag("stringtag", tag); err != nil {
+		log.Println("InitializeTag failed:", err)
+	}
 	log.Println("Name: ", tag.Name())
 	log.Println(tag.GetValue())
 }

@@ -36,10 +36,28 @@ func (i *CommonPacketFormatItem) Encode() []byte {
 	return io.Bytes()
 }
 
-func (i *CommonPacketFormatItem) Decode(io *bufferx.Reader) {
+func (i *CommonPacketFormatItem) Decode(io *bufferx.Reader) error {
 	i.TypeID = ItemID(io.ReadUint16())
 	i.Length = types.UInt(io.ReadUint16())
 	i.Data = io.ReadBytes(int(i.Length))
+	return io.Error()
+}
+
+func (c *CommonPacketFormat) Decode(io *bufferx.Reader) error {
+	c.ItemCount = types.UInt(io.ReadUint16())
+	if c.ItemCount > 0 {
+		c.Items = make([]CommonPacketFormatItem, 0, c.ItemCount)
+	}
+
+	for i := types.UInt(0); i < c.ItemCount; i++ {
+		item := CommonPacketFormatItem{}
+		if err := item.Decode(io); err != nil {
+			return err
+		}
+		c.Items = append(c.Items, item)
+	}
+
+	return io.Error()
 }
 
 type CommonPacketFormat struct {
@@ -60,19 +78,6 @@ func (c *CommonPacketFormat) Encode() []byte {
 	}
 
 	return io.Bytes()
-}
-
-func (c *CommonPacketFormat) Decode(io *bufferx.Reader) {
-	c.ItemCount = types.UInt(io.ReadUint16())
-	if c.ItemCount > 0 {
-		c.Items = make([]CommonPacketFormatItem, 0, c.ItemCount)
-	}
-
-	for i := types.UInt(0); i < c.ItemCount; i++ {
-		item := CommonPacketFormatItem{}
-		item.Decode(io)
-		c.Items = append(c.Items, item)
-	}
 }
 
 func NewCommonPacketFormat(items []CommonPacketFormatItem) *CommonPacketFormat {

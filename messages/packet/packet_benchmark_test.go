@@ -54,7 +54,9 @@ func BenchmarkCommonPacketFormatDecode(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cpf := &CommonPacketFormat{}
-		cpf.Decode(bufferx.NewReader(data))
+		if err := cpf.Decode(bufferx.NewReader(data)); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -110,7 +112,9 @@ func BenchmarkSpecificDataDecode(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		sd := &SpecificData{}
-		sd.Decode(data)
+		if err := sd.Decode(data); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

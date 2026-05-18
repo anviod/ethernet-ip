@@ -72,7 +72,9 @@ func TestCommonPacketFormatItemDecode(t *testing.T) {
 	data := []byte{0x00, 0x00, 0x03, 0x00, 0x01, 0x02, 0x03}
 
 	item := &CommonPacketFormatItem{}
-	item.Decode(bufferx.NewReader(data))
+	if err := item.Decode(bufferx.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
 
 	if item.TypeID != ItemIDUCMM {
 		t.Errorf("Expected TypeID 0x%04X, got 0x%04X", ItemIDUCMM, item.TypeID)
@@ -162,7 +164,9 @@ func TestSpecificDataDecode(t *testing.T) {
 	}
 
 	sd := &SpecificData{}
-	sd.Decode(data)
+	if err := sd.Decode(data); err != nil {
+		t.Fatal(err)
+	}
 
 	if sd.InterfaceHandle != 0x12345678 {
 		t.Errorf("Expected InterfaceHandle 0x%08X, got 0x%08X", 0x12345678, sd.InterfaceHandle)

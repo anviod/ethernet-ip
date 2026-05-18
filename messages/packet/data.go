@@ -19,10 +19,13 @@ func (r *SpecificData) Encode() []byte {
 	return io.Bytes()
 }
 
-func (r *SpecificData) Decode(data []byte) {
+func (r *SpecificData) Decode(data []byte) error {
 	io := bufferx.NewReader(data)
 	io.RL(&r.InterfaceHandle)
 	io.RL(&r.TimeOut)
 	r.Packet = new(CommonPacketFormat)
-	r.Packet.Decode(io)
+	if err := r.Packet.Decode(io); err != nil {
+		return err
+	}
+	return io.Error()
 }

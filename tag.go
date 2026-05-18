@@ -77,9 +77,17 @@ func (t *Tag) Read() error {
 	if err != nil {
 		return err
 	}
+	if res == nil || res.Packet == nil {
+		return errors.New("empty response packet")
+	}
+	itemIdx := findCommonPacketFormatDataItem(res.Packet.Items)
+	if itemIdx < 0 {
+		return errors.New("unexpected response packet item count")
+	}
+	item := &res.Packet.Items[itemIdx]
 
 	mrres := new(packet.MessageRouterResponse)
-	mrres.Decode(res.Packet.Items[1].Data)
+	mrres.Decode(item.Data)
 
 	t.readParser(mrres, nil)
 	return nil
@@ -656,7 +664,7 @@ func (tg *TagGroup) Write() error {
 	return nil
 }
 
-func (t *EIPTCP) InitializeTag(name string, tag *Tag) {
+func (t *EIPTCP) InitializeTag(name string, tag *Tag) error {
 	tag.Lock = new(sync.Mutex)
 	tag.TCP = t
 	nameBytes := []byte(name)
@@ -665,6 +673,5 @@ func (t *EIPTCP) InitializeTag(name string, tag *Tag) {
 		tag.name = nameBytes
 	}
 	tag.instanceID = 0
-	tag.Read()
-	return
+	return tag.Read()
 }

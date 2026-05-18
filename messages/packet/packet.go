@@ -73,7 +73,11 @@ func BatchDecode(data [][]byte) ([]*Packet, error) {
 			return nil, errors.New("wrong packet with non-zero option")
 		}
 		if int(p.Length) != reader.Len() {
-			return nil, errors.New("wrong packet length")
+			if p.Length == 0 && reader.Len() > 0 {
+				p.Length = types.UInt(reader.Len())
+			} else {
+				return nil, errors.New("wrong packet length")
+			}
 		}
 		p.SpecificData = reader.ReadBytes(reader.Len())
 		if reader.Error() != nil {
