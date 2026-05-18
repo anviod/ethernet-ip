@@ -11,6 +11,7 @@ const (
 	ListInterfaces    Command = 0x64
 	RegisterSession   Command = 0x65
 	UnRegisterSession Command = 0x66
+	SendRRDataLegacy  Command = 0x6A
 	SendRRData        Command = 0x6F
 	SendUnitData      Command = 0x70
 	IndicateStatus    Command = 0x72
@@ -24,6 +25,7 @@ var commandMap = map[Command]string{
 	ListInterfaces:    "ListInterfaces",
 	RegisterSession:   "RegisterSession",
 	UnRegisterSession: "UnRegisterSession",
+	SendRRDataLegacy:  "SendRRDataLegacy",
 	SendRRData:        "SendRRData",
 	SendUnitData:      "SendUnitData",
 	IndicateStatus:    "IndicateStatus",

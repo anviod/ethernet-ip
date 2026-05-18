@@ -179,7 +179,7 @@ func (b *BufferX) Reset() {
 }
 
 func (b *BufferX) Len() int {
-	return len(b.buf)
+	return len(b.buf) - b.pos
 }
 
 func (b *BufferX) Bytes() []byte {

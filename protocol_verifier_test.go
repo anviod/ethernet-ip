@@ -87,6 +87,182 @@ func (pv *ProtocolVerifier) verifyIdentity() []TestResult {
 	return results
 }
 
+// =============================================================================
+// cpppo 兼容扩展 - 使用 Class 2 对象访问标签
+// =============================================================================
+
+// cpppo 将标签映射到 Logix Class 2, Instance 1 的属性
+var tagToAttr = map[string]int{
+	"BoolTag":   1,
+	"SintTag":   2,
+	"IntTag":    3,
+	"DintTag":   4,
+	"LintTag":   5,
+	"UsintTag":  6,
+	"UintTag":   7,
+	"UdintTag":  8,
+	"UlintTag":  9,
+	"RealTag":   10,
+	"LrealTag":  11,
+	"StringTag": 12,
+}
+
+// ReadClass2Attribute 使用 Get Attribute Single 服务读取 Class 2 对象的属性
+func (conn *EIPTCP) ReadClass2Attribute(attrID int) ([]byte, error) {
+	// CIP Get Attribute Single (0x0E)
+	// Path: Class 2, Instance 1, Attribute attrID
+	pathData := []byte{
+		0x20, 0x02, // Class ID: 2
+		0x24, 0x01, // Instance ID: 1
+		0x30, byte(attrID), // Attribute ID
+	}
+
+	mr := packet.NewMessageRouter(0x0E, pathData, nil)
+	response, err := conn.Send(mr)
+	if err != nil {
+		return nil, err
+	}
+
+	if response == nil || response.Packet == nil {
+		return nil, fmt.Errorf("空响应")
+	}
+
+	itemIdx := -1
+	for i, item := range response.Packet.Items {
+		if item.TypeID == packet.ItemIDUnconnectedMessage {
+			itemIdx = i
+			break
+		}
+	}
+
+	if itemIdx < 0 {
+		return nil, fmt.Errorf("未找到 CIP 响应数据")
+	}
+
+	item := response.Packet.Items[itemIdx]
+	if len(item.Data) < 4 {
+		return nil, fmt.Errorf("响应数据过短")
+	}
+
+	// 解析 Message Router Response
+	rmr := &packet.MessageRouterResponse{}
+	rmr.Decode(item.Data)
+
+	if rmr.GeneralStatus != 0 {
+		return nil, fmt.Errorf("CIP error: 0x%02X", rmr.GeneralStatus)
+	}
+
+	return rmr.ResponseData, nil
+}
+
+func (pv *ProtocolVerifier) verifyDataTypesCpppo() []TestResult {
+	fmt.Println("\n[验证] 数据类型支持 (cpppo Class 2 方式)")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	type testCase struct {
+		tagName string
+		tagType string
+		attrID  int
+		parseFn func([]byte) interface{}
+	}
+
+	tests := []testCase{
+		{"BoolTag", "BOOL", 1, func(data []byte) interface{} {
+			if len(data) >= 1 {
+				return data[0] != 0
+			}
+			return nil
+		}},
+		{"SintTag", "SINT", 2, func(data []byte) interface{} {
+			if len(data) >= 1 {
+				return int8(data[0])
+			}
+			return nil
+		}},
+		{"IntTag", "INT", 3, func(data []byte) interface{} {
+			if len(data) >= 2 {
+				return int16(binary.LittleEndian.Uint16(data[:2]))
+			}
+			return nil
+		}},
+		{"DintTag", "DINT", 4, func(data []byte) interface{} {
+			if len(data) >= 4 {
+				return int32(binary.LittleEndian.Uint32(data[:4]))
+			}
+			return nil
+		}},
+		{"LintTag", "LINT", 5, func(data []byte) interface{} {
+			if len(data) >= 8 {
+				return int64(binary.LittleEndian.Uint64(data[:8]))
+			}
+			return nil
+		}},
+		{"UsintTag", "USINT", 6, func(data []byte) interface{} {
+			if len(data) >= 1 {
+				return uint8(data[0])
+			}
+			return nil
+		}},
+		{"UintTag", "UINT", 7, func(data []byte) interface{} {
+			if len(data) >= 2 {
+				return uint16(binary.LittleEndian.Uint16(data[:2]))
+			}
+			return nil
+		}},
+		{"UdintTag", "UDINT", 8, func(data []byte) interface{} {
+			if len(data) >= 4 {
+				return uint32(binary.LittleEndian.Uint32(data[:4]))
+			}
+			return nil
+		}},
+		{"UlintTag", "ULINT", 9, func(data []byte) interface{} {
+			if len(data) >= 8 {
+				return uint64(binary.LittleEndian.Uint64(data[:8]))
+			}
+			return nil
+		}},
+		{"RealTag", "REAL", 10, func(data []byte) interface{} {
+			if len(data) >= 4 {
+				return math.Float32frombits(binary.LittleEndian.Uint32(data[:4]))
+			}
+			return nil
+		}},
+		{"LrealTag", "LREAL", 11, func(data []byte) interface{} {
+			if len(data) >= 8 {
+				return math.Float64frombits(binary.LittleEndian.Uint64(data[:8]))
+			}
+			return nil
+		}},
+		{"StringTag", "STRING", 12, func(data []byte) interface{} {
+			if len(data) >= 2 {
+				strLen := int(binary.LittleEndian.Uint16(data[:2]))
+				if len(data) >= 2+strLen {
+					return string(data[2 : 2+strLen])
+				}
+				return string(data[2:])
+			}
+			return ""
+		}},
+	}
+
+	for _, tc := range tests {
+		data, err := conn.ReadClass2Attribute(tc.attrID)
+		if err != nil {
+			fmt.Printf("✗ %s (%s): 读取失败 - %v\n", tc.tagName, tc.tagType, err)
+			results = append(results, TestResult{Name: tc.tagType, Passed: false, Message: err.Error()})
+			continue
+		}
+
+		value := tc.parseFn(data)
+		fmt.Printf("✓ %s (%s): %v\n", tc.tagName, tc.tagType, value)
+		results = append(results, TestResult{Name: tc.tagType, Passed: true, Value: value})
+	}
+
+	return results
+}
+
 func (pv *ProtocolVerifier) verifyDataTypes() []TestResult {
 	fmt.Println("\n[验证] 数据类型支持")
 	results := []TestResult{}
@@ -321,6 +497,18 @@ func (pv *ProtocolVerifier) RunAllTests() []TestResult {
 	return allResults
 }
 
+// RunAllTestsCpppo 运行 cpppo 兼容测试
+func (pv *ProtocolVerifier) RunAllTestsCpppo() []TestResult {
+	allResults := []TestResult{}
+
+	allResults = append(allResults, pv.verifySession())
+	allResults = append(allResults, pv.verifyIdentity()...)
+	allResults = append(allResults, pv.verifyDataTypesCpppo()...)
+	allResults = append(allResults, pv.verifyErrorHandling()...)
+
+	return allResults
+}
+
 func TestProtocolVerifier_Integration(t *testing.T) {
 	conn := dialForTest(t)
 	if conn == nil {
@@ -343,6 +531,36 @@ func TestProtocolVerifier_Integration(t *testing.T) {
 
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("验证结果汇总: 通过=%d, 失败=%d\n", passed, failed)
+	fmt.Printf("========================================\n")
+
+	if failed > 0 {
+		t.Errorf("%d 个测试失败", failed)
+	}
+}
+
+// TestProtocolVerifier_Cpppo cpppo 兼容测试
+func TestProtocolVerifier_Cpppo(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.RunAllTestsCpppo()
+
+	passed := 0
+	failed := 0
+	for _, r := range results {
+		if r.Passed {
+			passed++
+		} else {
+			failed++
+		}
+	}
+
+	fmt.Printf("\n========================================\n")
+	fmt.Printf("cpppo 兼容验证结果汇总: 通过=%d, 失败=%d\n", passed, failed)
 	fmt.Printf("========================================\n")
 
 	if failed > 0 {
@@ -395,6 +613,23 @@ func TestProtocolVerifier_DataTypes(t *testing.T) {
 	for _, r := range results {
 		if !r.Passed {
 			t.Errorf("数据类型 %s 验证失败: %s", r.Name, r.Message)
+		}
+	}
+}
+
+func TestProtocolVerifier_DataTypesCpppo(t *testing.T) {
+	conn := dialForTest(t)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	pv := NewProtocolVerifier(conn)
+	results := pv.verifyDataTypesCpppo()
+
+	for _, r := range results {
+		if !r.Passed {
+			t.Errorf("cpppo数据类型 %s 验证失败: %s", r.Name, r.Message)
 		}
 	}
 }

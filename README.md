@@ -8,6 +8,7 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 - [支持的数据类型](#支持的数据类型)
 - [架构设计](#架构设计)
 - [调用流程](#调用流程)
+- [cpppo 兼容性](#cpppo-兼容性)
 - [API 参考](#api-参考)
 - [示例代码](#示例代码)
 - [性能优化](#性能优化)
@@ -27,6 +28,7 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 - ✅ 消息路由器（Message Router）
 - ✅ 缓冲区池化优化
 - ✅ 线程安全设计
+- ✅ cpppo 服务器兼容（Logix Class 2 对象标签访问）
 
 ---
 
@@ -306,6 +308,119 @@ ethernet-ip/
    │完成   │
    └───────┘
 ```
+
+---
+
+## cpppo 兼容性
+
+本库已支持与 cpppo 服务器的通信。cpppo 服务器使用 Logix Class 2 对象来存储标签，与标准 CIP Symbolic Path 格式不同。
+
+### 技术背景
+
+cpppo 服务器将标签映射到 Logix Class 2, Instance 1 的属性，使用 CIP Get Attribute Single (0x0E) 服务进行访问：
+
+| 标签名 | 属性 ID | 数据类型 |
+|--------|---------|----------|
+| `BoolTag` | 1 | BOOL |
+| `SintTag` | 2 | SINT |
+| `IntTag` | 3 | INT |
+| `DintTag` | 4 | DINT |
+| `LintTag` | 5 | LINT |
+| `UsintTag` | 6 | USINT |
+| `UintTag` | 7 | UINT |
+| `UdintTag` | 8 | UDINT |
+| `UlintTag` | 9 | ULINT |
+| `RealTag` | 10 | REAL |
+| `LrealTag` | 11 | LREAL |
+| `StringTag` | 12 | STRING |
+
+### 使用方法
+
+使用 `ReadClass2Attribute` 方法直接读取 Class 2 对象的属性：
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    "github.com/anviod/ethernet-ip"
+)
+
+func main() {
+    // 创建连接
+    conn, err := ethernet_ip.NewTCP("127.0.0.1", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer conn.Close()
+
+    // 建立连接
+    if err := conn.Connect(); err != nil {
+        log.Fatal(err)
+    }
+
+    // 使用 Class 2 属性访问方式读取标签
+    // 属性 ID 1 = BoolTag
+    data, err := conn.ReadClass2Attribute(1)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("BoolTag 值: %v\n", data[0] != 0)
+
+    // 属性 ID 10 = RealTag
+    data, err = conn.ReadClass2Attribute(10)
+    if err != nil {
+        log.Fatal(err)
+    }
+    floatValue := math.Float32frombits(binary.LittleEndian.Uint32(data[:4]))
+    fmt.Printf("RealTag 值: %f\n", floatValue)
+}
+```
+
+### 测试验证
+
+运行 cpppo 兼容测试：
+
+```bash
+# 启动 cpppo 服务器
+python test/cpppo/ethernet_ip_server_cpppo.py
+
+# 运行 Go 测试
+go test -v -run TestProtocolVerifier_Cpppo
+```
+
+测试结果示例：
+
+```
+[验证] Session 注册
+✓ Session 注册成功: 0xC17173CA
+
+[验证] Identity Object
+✓ 供应商ID: 1
+✓ 设备类型: 14
+✓ 产品代码: 54
+
+[验证] 数据类型支持 (cpppo Class 2 方式)
+✓ BoolTag (BOOL): true
+✓ SintTag (SINT): 42
+✓ IntTag (INT): 12345
+✓ DintTag (DINT): 987654321
+✓ RealTag (REAL): 3.14159
+✓ StringTag (STRING): Hello World
+
+========================================
+cpppo 兼容验证结果汇总: 通过=19, 失败=0
+========================================
+```
+
+### 注意事项
+
+1. cpppo 服务器需要先启动才能进行测试
+2. 默认端口为 44818
+3. 确保防火墙允许 TCP 44818 端口通信
+4. 使用 Class 2 方式访问时，标签名需要与 cpppo 服务器配置的标签名一致
 
 ---
 

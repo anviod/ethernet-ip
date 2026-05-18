@@ -88,6 +88,7 @@ func (t *EIPTCP) registerSessionLocked() error {
 	}
 
 	t.session = responsePacket.SessionHandle
+	t.established = t.session != 0
 	return nil
 }
 
@@ -162,7 +163,26 @@ func (t *EIPTCP) SendRRData(cpf *packet.CommonPacketFormat, timeout types.UInt) 
 		return nil, err
 	}
 
-	return sendRRData.Decode(responsePacket)
+	spd, err := sendRRData.Decode(responsePacket)
+	if err == nil && hasCPFDataItem(spd) {
+		return spd, nil
+	}
+
+	legacyPacket, legacyErr := sendRRData.NewLegacy(t.session, ctx, cpf)
+	if legacyErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return spd, legacyErr
+	}
+	legacyResponse, legacyErr := t.request(legacyPacket)
+	if legacyErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return spd, legacyErr
+	}
+	return sendRRData.Decode(legacyResponse)
 }
 
 func (t *EIPTCP) SendUnitData(cpf *packet.CommonPacketFormat) (*packet.SpecificData, error) {
@@ -209,16 +229,19 @@ func findCommonPacketFormatDataItem(items []packet.CommonPacketFormatItem) int {
 	return 1
 }
 
-func (t *EIPTCP) Send(mr *packet.MessageRouterRequest) (*packet.SpecificData, error) {
-	if !t.established {
-		mr = packet.UnConnected(t.config.Slot, t.config.TimeTick, t.config.TimeTickOut, mr)
+func hasCPFDataItem(spd *packet.SpecificData) bool {
+	if spd == nil || spd.Packet == nil {
+		return false
 	}
-	if t.established {
+	return findCommonPacketFormatDataItem(spd.Packet.Items) >= 0
+}
+
+func (t *EIPTCP) Send(mr *packet.MessageRouterRequest) (*packet.SpecificData, error) {
+	if t.connID != 0 {
 		t.seqNum += 1
 		return t.SendUnitData(packet.NewCMM(t.connID, t.seqNum, mr))
-	} else {
-		return t.SendRRData(packet.NewUCMM(mr), 10)
 	}
+	return t.SendRRData(packet.NewUCMM(mr), 10)
 }
 
 func (t *EIPTCP) ForwardOpen() error {

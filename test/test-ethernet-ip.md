@@ -1,4 +1,4 @@
-以下测试用例为 Ethernet IP 模拟器的测试测试用例(需要全部通过)：
+以下测试用例为 cpppo  Ethernet IP 模拟器的测试测试用例(需要protocol_verifier_test.go全部通过)：
 1. 设备发现
    - 使用 CIPDriver.discover() 能发现模拟器
    - 设备信息正确 (名称、厂商、类型) 现实正常

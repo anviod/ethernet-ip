@@ -89,8 +89,7 @@ func (t *Tag) Read() error {
 	mrres := new(packet.MessageRouterResponse)
 	mrres.Decode(item.Data)
 
-	t.readParser(mrres, nil)
-	return nil
+	return t.readParser(mrres, nil)
 }
 
 func (t *Tag) readRequest() *packet.MessageRouterRequest {
@@ -103,6 +102,11 @@ func (t *Tag) readRequest() *packet.MessageRouterRequest {
 	} else {
 		io.WL(types.UInt(1)) //read a single element if t.dimXlen are not defined
 	}
+	paths := t.requestPath()
+	if len(paths) > 0 && !(t.instanceID > 0 && !bytes.Contains(t.name, []byte("."))) {
+		return packet.NewMessageRouter(packet.ServiceReadTag, paths, io.Bytes())
+	}
+
 	//split tag name into array of segment names and check if 'ANSI Extended Symbolic Segments' need to be used
 	if inPaths := strings.Split(string(t.name), "."); t.instanceID > 0 && len(inPaths) < 2 {
 		//Only logical segments need to be used.
@@ -153,6 +157,39 @@ func (t *Tag) readRequest() *packet.MessageRouterRequest {
 	}
 }
 
+func (t *Tag) requestPath() []byte {
+	inPaths := strings.Split(string(t.name), ".")
+	if t.instanceID > 0 && len(inPaths) < 2 {
+		return packet.Paths(
+			path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true),
+			path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true),
+		)
+	}
+
+	var paths []byte
+	iinit := 0
+	if t.instanceID > 0 {
+		iinit = 1
+		paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true))
+		paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true))
+	}
+	for i := iinit; i < len(inPaths); i++ {
+		startSquareBrackIndex := len(inPaths[i])
+		var eleIds []string
+		if strings.HasSuffix(inPaths[i], "]") {
+			startSquareBrackIndex = strings.Index(inPaths[i], "[")
+			eleIdsStr := inPaths[i][startSquareBrackIndex+1 : len(inPaths[i])-1]
+			eleIds = strings.Split(eleIdsStr, ",")
+		}
+		paths = packet.Paths(paths, path.DataBuild(path.DataTypeANSI, []byte(inPaths[i][:startSquareBrackIndex]), true))
+		for _, v := range eleIds {
+			id, _ := strconv.Atoi(v)
+			paths = packet.Paths(paths, path.LogicalBuild(path.LogicalTypeMemberID, types.UDInt(id), true))
+		}
+	}
+	return paths
+}
+
 func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) error {
 	if mr.GeneralStatus > 0 {
 		errorByte := make([]byte, 1)
@@ -165,10 +202,16 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 	//Read the tag type
 	ttype := types.UInt(0)
 	io.RL(&ttype)
+	if io.Error() != nil {
+		return io.Error()
+	}
 
 	//If the tag type is actually a structure handle then read it.
 	if ttype == 0x2a0 { //per the documentation 0x2a0 means tag is not atomic!
 		io.RL(&ttype)
+		if io.Error() != nil {
+			return io.Error()
+		}
 	}
 
 	//If the tag type is not defined, define it.
@@ -176,9 +219,19 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 		t.Type = ttype
 	}
 
-	//Read the tag value
+	//Read the number of elements
+	count := types.UInt(0)
+	io.RL(&count)
+	if io.Error() != nil {
+		return io.Error()
+	}
+
+	//Read the tag value(s)
 	payload := make([]byte, io.Len())
-	io.RL(payload)
+	io.RL(&payload)
+	if io.Error() != nil {
+		return io.Error()
+	}
 
 	//if the tag value changed, call the OnChange callback
 	if bytes.Compare(t.value, payload) != 0 {
@@ -218,10 +271,7 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 		io.WL(t.count())
 		io.WL(t.wValue)
 
-		mr := packet.NewMessageRouter(packet.ServiceWriteTag, packet.Paths(
-			path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true),
-			path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true),
-		), io.Bytes())
+		mr := packet.NewMessageRouter(packet.ServiceWriteTag, t.requestPath(), io.Bytes())
 		result = append(result, mr)
 	} else {
 		// only string
@@ -254,7 +304,22 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 func (t *Tag) SetInt32(i int32) {
 	t.changed = true
 	io := bufferx.New(nil)
-	io.WL(i)
+	switch t.Type {
+	case INT:
+		io.WL(int16(i))
+	case UINT:
+		io.WL(uint16(i))
+	case DINT:
+		io.WL(i)
+	case UDINT:
+		io.WL(uint32(i))
+	case LINT:
+		io.WL(int64(i))
+	case ULINT:
+		io.WL(uint64(i))
+	default:
+		io.WL(i)
+	}
 	t.wValue = io.Bytes()
 }
 
@@ -545,6 +610,9 @@ type TagGroup struct {
 }
 
 func NewTagGroup(lock *sync.Mutex) *TagGroup {
+	if lock == nil {
+		lock = new(sync.Mutex)
+	}
 	return &TagGroup{tags: make(map[types.UDInt]*Tag), Lock: lock}
 }
 
