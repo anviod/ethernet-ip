@@ -400,6 +400,9 @@ func (t *Tag) GetValue() interface{} {
 }
 
 func (t *Tag) Bool() bool {
+	if len(t.value) < 1 {
+		return false
+	}
 	io := bufferx.New(t.value)
 	var val bool
 	io.RL(&val)
@@ -407,6 +410,9 @@ func (t *Tag) Bool() bool {
 }
 
 func (t *Tag) Int8() int8 {
+	if len(t.value) < 1 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val int8
 	io.RL(&val)
@@ -414,6 +420,9 @@ func (t *Tag) Int8() int8 {
 }
 
 func (t *Tag) UInt8() uint8 {
+	if len(t.value) < 1 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val uint8
 	io.RL(&val)
@@ -421,6 +430,9 @@ func (t *Tag) UInt8() uint8 {
 }
 
 func (t *Tag) Int16() int16 {
+	if len(t.value) < 2 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val int16
 	io.RL(&val)
@@ -428,6 +440,9 @@ func (t *Tag) Int16() int16 {
 }
 
 func (t *Tag) UInt16() uint16 {
+	if len(t.value) < 2 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val uint16
 	io.RL(&val)
@@ -435,6 +450,9 @@ func (t *Tag) UInt16() uint16 {
 }
 
 func (t *Tag) Int32() int32 {
+	if len(t.value) < 4 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val int32
 	io.RL(&val)
@@ -442,6 +460,9 @@ func (t *Tag) Int32() int32 {
 }
 
 func (t *Tag) UInt32() uint32 {
+	if len(t.value) < 4 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val uint32
 	io.RL(&val)
@@ -449,6 +470,9 @@ func (t *Tag) UInt32() uint32 {
 }
 
 func (t *Tag) Int64() int64 {
+	if len(t.value) < 8 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val int64
 	io.RL(&val)
@@ -456,6 +480,9 @@ func (t *Tag) Int64() int64 {
 }
 
 func (t *Tag) UInt64() uint64 {
+	if len(t.value) < 8 {
+		return 0
+	}
 	io := bufferx.New(t.value)
 	var val uint64
 	io.RL(&val)
@@ -463,11 +490,17 @@ func (t *Tag) UInt64() uint64 {
 }
 
 func (t *Tag) Float64() float64 {
+	if len(t.value) < 8 {
+		return 0
+	}
 	bits := binary.LittleEndian.Uint64(t.value)
 	return math.Float64frombits(bits)
 }
 
 func (t *Tag) Float32() float32 {
+	if len(t.value) < 4 {
+		return 0
+	}
 	bits := binary.LittleEndian.Uint32(t.value)
 	return math.Float32frombits(bits)
 }

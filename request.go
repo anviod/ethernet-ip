@@ -173,14 +173,14 @@ func (t *EIPTCP) SendRRData(cpf *packet.CommonPacketFormat, timeout types.UInt) 
 		if err != nil {
 			return nil, err
 		}
-		return spd, legacyErr
+		return nil, legacyErr
 	}
 	legacyResponse, legacyErr := t.request(legacyPacket)
 	if legacyErr != nil {
 		if err != nil {
 			return nil, err
 		}
-		return spd, legacyErr
+		return nil, legacyErr
 	}
 	return sendRRData.Decode(legacyResponse)
 }
