@@ -5,6 +5,15 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 ## 目录
 
 - [功能特性](#功能特性)
+- [快速开始](#快速开始)
+  - [安装库](#安装库)
+    - [使用最新版本](#使用最新版本)
+    - [指定版本](#指定版本)
+  - [导入库](#导入库)
+  - [创建连接](#创建连接)
+  - [读取 Tag](#读取-tag)
+  - [写入 Tag](#写入-tag)
+  - [批量操作](#批量操作)
 - [支持的数据类型](#支持的数据类型)
 - [架构设计](#架构设计)
 - [调用流程](#调用流程)
@@ -12,6 +21,7 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 - [API 参考](#api-参考)
 - [示例代码](#示例代码)
 - [性能优化](#性能优化)
+- [版本更新](#版本更新)
 
 ---
 
@@ -28,7 +38,110 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 - ✅ 消息路由器（Message Router）
 - ✅ 缓冲区池化优化
 - ✅ 线程安全设计
-- ✅ cpppo 服务器兼容（Logix Class 2 对象标签访问）
+- ✅ 兼容（Logix Class 2 对象标签访问）
+
+---
+## 快速开始
+
+### 安装库
+
+#### 使用最新版本
+
+```bash
+go get github.com/anviod/ethernet-ip@latest
+```
+
+#### 指定版本
+
+```bash
+# 使用特定版本（推荐用于生产环境）
+go get github.com/anviod/ethernet-ip@v0.0.4
+
+# 使用特定提交
+go get github.com/anviod/ethernet-ip@abc1234
+
+# 使用分支
+go get github.com/anviod/ethernet-ip@main
+```
+
+### 导入库
+
+```go
+import (
+    "log"
+    "github.com/anviod/ethernet-ip"
+)
+```
+
+### 创建连接
+
+```go
+// 创建 TCP 连接对象
+conn, err := ethernet_ip.NewTCP("192.168.1.10", nil)
+if err != nil {
+    log.Fatal("创建连接失败:", err)
+}
+defer conn.Close()
+
+// 建立连接
+if err := conn.Connect(); err != nil {
+    log.Fatal("连接失败:", err)
+}
+```
+
+### 读取 Tag
+
+```go
+// 获取所有 Tag
+tags, err := conn.AllTags()
+if err != nil {
+    log.Fatal("获取 Tag 列表失败:", err)
+}
+
+// 读取单个 Tag
+tag := tags["Counter"]
+if err := tag.Read(); err != nil {
+    log.Fatal("读取 Tag 失败:", err)
+}
+
+// 获取值
+log.Printf("Tag 值: %d\n", tag.Int32())
+```
+
+### 写入 Tag
+
+```go
+// 设置新值并写入
+tag.SetInt32(12345)
+if err := tag.Write(); err != nil {
+    log.Fatal("写入 Tag 失败:", err)
+}
+log.Println("写入成功")
+```
+
+### 批量操作
+
+```go
+// 创建 Tag 组
+lock := new(sync.Mutex)
+group := ethernet_ip.NewTagGroup(lock)
+
+// 添加多个 Tag
+group.Add(tags["tag1"])
+group.Add(tags["tag2"])
+
+// 批量读取
+if err := group.Read(); err != nil {
+    log.Fatal("批量读取失败:", err)
+}
+
+// 批量写入
+tags["tag1"].SetInt32(100)
+tags["tag2"].SetString("updated")
+if err := group.Write(); err != nil {
+    log.Fatal("批量写入失败:", err)
+}
+```
 
 ---
 
@@ -954,6 +1067,47 @@ func main() {
 | Tag 写入 | ~200万 ops/s | varies |
 
 详细性能测试报告请参考 [doc/PERFORMANCE_OPTIMIZATION_CN.md](doc/PERFORMANCE_OPTIMIZATION_CN.md)
+
+---
+
+## 版本更新
+
+### v0.0.4 (2026-05-19)
+
+**Bug 修复**
+- 修复 NOP 命令空数据导致 cpppo 状态机错误
+- 修复 Tag.Write() 缓冲区复制问题 (`copy` → `append`)
+- 修复 `readParser` offset 计算错误（扩展类型 0x2a0 场景）
+- 移除 Write() 函数冗余的 nil 检查
+- 添加 offset 负值边界检查，避免切片越界 panic
+
+**新增功能**
+- 新增 Tag 单元测试（14 个测试函数）
+- 新增性能测试套件（生成 JSON/Markdown 报告）
+
+### v0.0.3 (2026-05-18)
+
+**Bug 修复**
+- 修复 TagGroup 批量写入失败问题
+
+**新增功能**
+- 添加 cpppo 服务器兼容性支持（Logix Class 2 对象标签访问）
+- 新增 `ReadClass2Attribute` 方法
+
+### v0.0.2 (2026-05-17)
+
+**新增功能**
+- 添加连接池支持（EIPTCPPool）
+- 添加缓冲区池化优化
+- 支持 UDT（用户定义类型）
+
+### v0.0.1 (2026-05-16)
+
+**初始版本**
+- 基础 TCP 连接管理
+- Tag 读写操作
+- 支持基本数据类型（BOOL, INT, DINT, REAL, STRING 等）
+- 消息路由器实现
 
 ---
 
