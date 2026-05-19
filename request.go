@@ -69,6 +69,9 @@ func (t *EIPTCP) requestLocked(packet *packet.Packet) (*packet.Packet, error) {
 	return resp, nil
 }
 
+// RegisterSession registers a session with the EtherNet/IP device.
+// It is called automatically by Connect(), but can be called manually
+// after an UnRegisterSession() to re-establish the session.
 func (t *EIPTCP) RegisterSession() error {
 	t.requestLock.Lock()
 	defer t.requestLock.Unlock()
@@ -92,6 +95,7 @@ func (t *EIPTCP) registerSessionLocked() error {
 	return nil
 }
 
+// UnRegisterSession unregisters the session with the EtherNet/IP device.
 func (t *EIPTCP) UnRegisterSession() error {
 	ctx := contextGenerator()
 	requestPacket, err := unRegisterSession.New(t.session, ctx)
@@ -106,6 +110,7 @@ func (t *EIPTCP) UnRegisterSession() error {
 	return nil
 }
 
+// ListInterface requests the list of network interfaces from the device.
 func (t *EIPTCP) ListInterface() (*listInterface.ListInterface, error) {
 	ctx := contextGenerator()
 	requestPacket, err := listInterface.New(ctx)
@@ -121,6 +126,7 @@ func (t *EIPTCP) ListInterface() (*listInterface.ListInterface, error) {
 	return listInterface.Decode(responsePacket)
 }
 
+// ListServices requests the list of available services from the device.
 func (t *EIPTCP) ListServices() (*listServices.ListServices, error) {
 	ctx := contextGenerator()
 	requestPacket, err := listServices.New(ctx)
@@ -136,6 +142,8 @@ func (t *EIPTCP) ListServices() (*listServices.ListServices, error) {
 	return listServices.Decode(responsePacket)
 }
 
+// ListIdentity requests the identity information from the device.
+// This is typically used for device discovery on the network.
 func (t *EIPTCP) ListIdentity() (*listIdentity.ListIdentity, error) {
 	ctx := contextGenerator()
 	requestPacket, err := listIdentity.New(ctx)
@@ -236,6 +244,8 @@ func hasCPFDataItem(spd *packet.SpecificData) bool {
 	return findCommonPacketFormatDataItem(spd.Packet.Items) >= 0
 }
 
+// Send sends a MessageRouter request and returns the response.
+// This is a low-level method used internally by higher-level operations.
 func (t *EIPTCP) Send(mr *packet.MessageRouterRequest) (*packet.SpecificData, error) {
 	if t.connID != 0 {
 		t.seqNum += 1
@@ -244,6 +254,9 @@ func (t *EIPTCP) Send(mr *packet.MessageRouterRequest) (*packet.SpecificData, er
 	return t.SendRRData(packet.NewUCMM(mr), 10)
 }
 
+// ForwardOpen establishes a forward open connection to the device.
+// This is used for time-critical communications that require a dedicated
+// connection path. Call ForwardClose to close the connection when done.
 func (t *EIPTCP) ForwardOpen() error {
 	io := bufferx.NewWithCapacity(64)
 	io.WL(types.USInt(3))

@@ -35,6 +35,7 @@ const (
 	STRING2 types.UInt = 0x8fce
 )
 
+// TypeMap maps CIP type codes to human-readable type names.
 var TypeMap = map[types.UInt]string{
 	NULL:    "NULL",
 	BOOL:    "BOOL",
@@ -52,6 +53,8 @@ var TypeMap = map[types.UInt]string{
 	STRING2: "STRING",
 }
 
+// Tag represents a PLC tag with value, type, and dimension information.
+// Tags can be read from or written to the PLC using the Read and Write methods.
 type Tag struct {
 	Lock *sync.Mutex
 	TCP  *EIPTCP
@@ -70,6 +73,9 @@ type Tag struct {
 	Onchange func()
 }
 
+// Read reads the current value of the tag from the PLC.
+// After a successful Read, use the appropriate type conversion method
+// (Int32, Int16, String, etc.) to get the tag's value.
 func (t *Tag) Read() error {
 	t.Lock.Lock()
 	defer t.Lock.Unlock()
@@ -247,6 +253,9 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 	return nil
 }
 
+// Write writes the pending value of the tag to the PLC.
+// Before calling Write, use a setter method (SetInt32, SetString, etc.)
+// to set the value to be written.
 func (t *Tag) Write() error {
 	t.Lock.Lock()
 	defer t.Lock.Unlock()

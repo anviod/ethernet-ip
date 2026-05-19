@@ -12,6 +12,8 @@ import (
 	"github.com/anviod/ethernet-ip/types"
 )
 
+// EIPTCP represents a TCP connection to an EtherNet/IP device.
+// It provides methods for communicating with PLCs and compatible devices.
 type EIPTCP struct {
 	config  *Config
 	tcpAddr *net.TCPAddr
@@ -29,7 +31,9 @@ type EIPTCP struct {
 	maxReconnect      int
 }
 
-// NewTCP creates a new EIPTCP instance
+// NewTCP creates a new EIPTCP instance and resolves the target address.
+// The address parameter should be an IP address or hostname.
+// If config is nil, DefaultConfig() will be used.
 func NewTCP(address string, config *Config) (*EIPTCP, error) {
 	if config == nil {
 		config = DefaultConfig()
@@ -100,12 +104,15 @@ func (t *EIPTCP) reconnectLocked() error {
 	return nil
 }
 
+// IsConnected returns true if the TCP connection is established and session is registered.
 func (t *EIPTCP) IsConnected() bool {
 	t.requestLock.Lock()
 	defer t.requestLock.Unlock()
 	return t.tcpConn != nil && t.established
 }
 
+// Connect establishes a TCP connection to the device and registers a session.
+// It must be called before any read/write operations.
 func (t *EIPTCP) Connect() error {
 	t.reset()
 
