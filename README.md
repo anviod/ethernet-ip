@@ -1195,6 +1195,241 @@ func main() {
 
 ---
 
+## 测试
+
+### 测试分类
+
+本项目包含多种类型的测试，确保代码质量和功能正确性：
+
+| 测试类型 | 描述 | 文件位置 |
+|---------|------|---------|
+| **单元测试** | 测试单个函数或方法的行为 | `*_test.go` |
+| **集成测试** | 测试组件之间的交互 | `test/protocol_verifier_test.go` |
+| **协议验证测试** | 验证 EIP 协议合规性 | `test/protocol_verifier_test.go` |
+| **性能测试** | 测试性能指标 | `benchmark/` |
+
+### 测试文件结构
+
+```
+ethernet-ip/
+└── test/
+    ├── protocol_verifier_test.go  # 协议验证集成测试
+    ├── access_mode_test.go   # 访问模式测试（CIP/Logix）
+```
+
+### 测试覆盖范围
+
+#### 1. 数据类型读写测试
+
+支持所有 12 种数据类型的单独读写：
+
+| 类型 | 写入测试 | 读取测试 | 验证方式 |
+|------|---------|---------|---------|
+| BOOL | `SetBool()` | `Bool()` | 布尔比较 |
+| SINT | `SetInt8()` | `Int8()` | 数值比较 |
+| INT | `SetInt16()` | `Int16()` | 数值比较 |
+| DINT | `SetInt32()` | `Int32()` | 数值比较 |
+| LINT | `SetInt64()` | `Int64()` | 数值比较 |
+| USINT | `SetUInt8()` | `UInt8()` | 数值比较 |
+| UINT | `SetUInt16()` | `UInt16()` | 数值比较 |
+| UDINT | `SetUInt32()` | `UInt32()` | 数值比较 |
+| ULINT | `SetUInt64()` | `UInt64()` | 数值比较 |
+| REAL | `SetFloat32()` | `Float32()` | 精度比较 |
+| LREAL | `SetFloat64()` | `Float64()` | 精度比较 |
+| STRING | `SetString()` | `String()` | 字符串比较 |
+
+#### 2. 批量操作测试
+
+测试 TagGroup 的批量读写功能：
+
+```go
+// 批量读取测试
+group := ethernet_ip.NewTagGroup(nil)
+group.Add(tag1)
+group.Add(tag2)
+group.Read()  // 批量读取
+
+// 批量写入测试
+tag1.SetInt32(100)
+tag2.SetFloat32(3.14)
+group.Write() // 批量写入
+```
+
+#### 3. 访问模式测试
+
+测试两种访问模式：
+
+| 模式 | 测试函数 | 访问方式 |
+|------|---------|---------|
+| 标准 CIP 模式 | `TestAccessMode_CIPMode` | Symbolic Addressing |
+| Logix 模式 | `TestAccessMode_LogixModeAttributeMapping` | Class 2 属性 |
+
+### 运行测试
+
+#### 运行所有测试
+
+```bash
+go test ./...
+```
+
+#### 运行特定测试
+
+```bash
+# 运行单元测试
+go test -v -run "TestTag" ./...
+
+# 运行协议验证测试
+go test -v -run "TestProtocolVerifier" ./test/...
+
+# 运行性能测试
+go test -bench=. ./benchmark/...
+```
+
+#### 运行集成测试（需要 cpppo 服务器）
+
+```bash
+# 启动 cpppo 服务器
+python test/cpppo/ethernet_ip_server_cpppo.py
+
+# 在另一个终端运行测试
+go test -v -run "TestProtocolVerifier_Cpppo" ./test/...
+```
+
+### 测试流程
+
+#### 1. 单元测试流程
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  单元测试流程                          │
+├─────────────────────────────────────────────────────────┤
+│  1. 初始化测试环境                                     │
+│     └─ 创建 Tag 对象                                   │
+│         └─ 设置测试数据                                │
+│                                                       │
+│  2. 执行测试方法                                       │
+│     └─ 调用被测函数/方法                               │
+│         └─ 捕获返回值                                 │
+│                                                       │
+│  3. 验证结果                                          │
+│     └─ 使用 t.Errorf() / t.Fatalf()                   │
+│         └─ 输出测试失败信息                           │
+│                                                       │
+│  4. 清理资源                                          │
+│     └─ 使用 defer 释放资源                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 2. 集成测试流程
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  集成测试流程                          │
+├─────────────────────────────────────────────────────────┤
+│  1. 建立连接                                          │
+│     └─ NewTCP() 创建连接对象                          │
+│         └─ Connect() 建立 TCP 连接                   │
+│             └─ RegisterSession() 注册会话             │
+│                                                       │
+│  2. 执行测试用例                                       │
+│     ├─ Session 验证                                   │
+│     ├─ Identity 查询                                  │
+│     ├─ 数据类型读写验证                               │
+│     ├─ Tag 单独读写                                   │
+│     ├─ TagGroup 批量操作                              │
+│     └─ 错误处理测试                                   │
+│                                                       │
+│  3. 收集结果                                          │
+│     └─ 统计通过/失败数量                              │
+│         └─ 输出测试报告                               │
+│                                                       │
+│  4. 清理连接                                          │
+│     └─ Close() 关闭连接                               │
+│         └─ UnRegisterSession() 注销会话              │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 3. 协议验证测试流程
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                协议验证测试流程                        │
+├─────────────────────────────────────────────────────────┤
+│  1. 连接到测试设备                                    │
+│     └─ 连接到 cpppo 模拟器或真实 PLC                  │
+│                                                       │
+│  2. 验证协议合规性                                     │
+│     ├─ EIP TCP 协议握手                               │
+│     ├─ CIP 路径构建                                   │
+│     ├─ Message Router 服务                           │
+│     ├─ Tag 读写服务 (0x4C/0x4D)                      │
+│     └─ Class 2 属性访问 (0x0E)                        │
+│                                                       │
+│  3. 验证数据完整性                                    │
+│     ├─ 字节序转换                                     │
+│     ├─ 缓冲区操作                                     │
+│     └─ 数据编码/解码                                  │
+│                                                       │
+│  4. 生成测试报告                                      │
+│     └─ 输出 JSON/Markdown 格式报告                    │
+│         └─ 保存到 doc/ 目录                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 测试结果示例
+
+#### 单元测试结果
+
+```
+=== RUN   TestTag_SetInt32
+--- PASS: TestTag_SetInt32 (0.00s)
+=== RUN   TestTag_GetInt16
+--- PASS: TestTag_GetInt16 (0.00s)
+=== RUN   TestTag_GetString
+--- PASS: TestTag_GetString (0.00s)
+=== RUN   TestTag_Bool
+--- PASS: TestTag_Bool (0.00s)
+PASS
+ok      github.com/anviod/ethernet-ip    0.001s
+```
+
+#### 集成测试结果
+
+```
+[验证] Session 注册
+✓ Session 注册成功
+
+[验证] Identity Object
+✓ 供应商ID: 1
+✓ 设备类型: 14
+✓ 产品代码: 54
+✓ 产品名称: cpppo
+✓ 产品序列号: 0x12345678
+
+[验证] 数据类型支持 (cpppo Class 2 方式)
+✓ BoolTag (BOOL): true
+✓ SintTag (SINT): 42
+✓ IntTag (INT): 12345
+✓ DintTag (DINT): 987654321
+✓ RealTag (REAL): 3.14159
+✓ StringTag (STRING): Hello World
+
+========================================
+验证结果汇总: 通过=19, 失败=0
+========================================
+```
+
+### 测试报告
+
+测试完成后会生成性能报告到 `doc/` 目录：
+
+```bash
+# 生成性能报告
+go test -bench=. -benchmem ./benchmark/... > doc/BENCHMARK_RESULT.md
+```
+
+---
+
 ## 性能优化
 
 本库已进行多项性能优化：

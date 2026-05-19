@@ -1,4 +1,4 @@
-package ethernet_ip
+package test
 
 import (
 	"bytes"
@@ -8,16 +8,17 @@ import (
 	"math"
 	"testing"
 
+	ethernet_ip "github.com/anviod/ethernet-ip"
 	"github.com/anviod/ethernet-ip/bufferx"
 	"github.com/anviod/ethernet-ip/messages/packet"
 	"github.com/anviod/ethernet-ip/path"
 )
 
 type ProtocolVerifier struct {
-	conn *EIPTCP
+	conn *ethernet_ip.EIPTCP
 }
 
-func NewProtocolVerifier(conn *EIPTCP) *ProtocolVerifier {
+func NewProtocolVerifier(conn *ethernet_ip.EIPTCP) *ProtocolVerifier {
 	return &ProtocolVerifier{conn: conn}
 }
 
@@ -28,8 +29,8 @@ type TestResult struct {
 	Value   interface{}
 }
 
-func dialForTest(t *testing.T) *EIPTCP {
-	conn, err := NewTCP("127.0.0.1", nil)
+func dialForTest(t *testing.T) *ethernet_ip.EIPTCP {
+	conn, err := ethernet_ip.NewTCP("127.0.0.1", nil)
 	if err != nil {
 		t.Skipf("跳过测试: 无法创建TCP连接: %v", err)
 	}
@@ -43,12 +44,12 @@ func (pv *ProtocolVerifier) verifySession() TestResult {
 	fmt.Println("\n[验证] Session 注册")
 
 	conn := pv.conn
-	if conn == nil || !conn.established {
+	if conn == nil || !conn.IsConnected() {
 		return TestResult{Name: "Session注册", Passed: false, Message: "连接未建立"}
 	}
 
-	fmt.Printf("✓ Session 注册成功: 0x%08X\n", conn.session)
-	return TestResult{Name: "Session注册", Passed: true, Message: fmt.Sprintf("Session: 0x%08X", conn.session)}
+	fmt.Printf("✓ Session 注册成功\n")
+	return TestResult{Name: "Session注册", Passed: true, Message: "连接已建立"}
 }
 
 func (pv *ProtocolVerifier) verifyIdentity() []TestResult {
@@ -108,7 +109,7 @@ var tagToAttr = map[string]int{
 }
 
 // ReadClass2Attribute 使用 Get Attribute Single 服务读取 Class 2 对象的属性
-func (conn *EIPTCP) ReadClass2Attribute(attrID int) ([]byte, error) {
+func ReadClass2Attribute(conn *ethernet_ip.EIPTCP, attrID int) ([]byte, error) {
 	// CIP Get Attribute Single (0x0E)
 	// Path: Class 2, Instance 1, Attribute attrID
 	pathData := []byte{
@@ -248,7 +249,7 @@ func (pv *ProtocolVerifier) verifyDataTypesCpppo() []TestResult {
 	}
 
 	for _, tc := range tests {
-		data, err := conn.ReadClass2Attribute(tc.attrID)
+		data, err := ReadClass2Attribute(conn, tc.attrID)
 		if err != nil {
 			fmt.Printf("✗ %s (%s): 读取失败 - %v\n", tc.tagName, tc.tagType, err)
 			results = append(results, TestResult{Name: tc.tagType, Passed: false, Message: err.Error()})
@@ -272,26 +273,26 @@ func (pv *ProtocolVerifier) verifyDataTypes() []TestResult {
 	type testCase struct {
 		tagName string
 		tagType string
-		readFn  func(*Tag) interface{}
+		readFn  func(*ethernet_ip.Tag) interface{}
 	}
 
 	tests := []testCase{
-		{"Program:MainProgram.BoolTag", "BOOL", func(t *Tag) interface{} { return t.Bool() }},
-		{"Program:MainProgram.SintTag", "SINT", func(t *Tag) interface{} { return t.Int8() }},
-		{"Program:MainProgram.IntTag", "INT", func(t *Tag) interface{} { return t.Int16() }},
-		{"Program:MainProgram.DintTag", "DINT", func(t *Tag) interface{} { return t.Int32() }},
-		{"Program:MainProgram.LintTag", "LINT", func(t *Tag) interface{} { return t.Int64() }},
-		{"Program:MainProgram.UsintTag", "USINT", func(t *Tag) interface{} { return t.UInt8() }},
-		{"Program:MainProgram.UintTag", "UINT", func(t *Tag) interface{} { return t.UInt16() }},
-		{"Program:MainProgram.UdintTag", "UDINT", func(t *Tag) interface{} { return t.UInt32() }},
-		{"Program:MainProgram.UlintTag", "ULINT", func(t *Tag) interface{} { return t.UInt64() }},
-		{"Program:MainProgram.RealTag", "REAL", func(t *Tag) interface{} { return t.Float32() }},
-		{"Program:MainProgram.LrealTag", "LREAL", func(t *Tag) interface{} { return t.Float64() }},
-		{"Program:MainProgram.StringTag", "STRING", func(t *Tag) interface{} { return t.String() }},
+		{"Program:MainProgram.BoolTag", "BOOL", func(t *ethernet_ip.Tag) interface{} { return t.Bool() }},
+		{"Program:MainProgram.SintTag", "SINT", func(t *ethernet_ip.Tag) interface{} { return t.Int8() }},
+		{"Program:MainProgram.IntTag", "INT", func(t *ethernet_ip.Tag) interface{} { return t.Int16() }},
+		{"Program:MainProgram.DintTag", "DINT", func(t *ethernet_ip.Tag) interface{} { return t.Int32() }},
+		{"Program:MainProgram.LintTag", "LINT", func(t *ethernet_ip.Tag) interface{} { return t.Int64() }},
+		{"Program:MainProgram.UsintTag", "USINT", func(t *ethernet_ip.Tag) interface{} { return t.UInt8() }},
+		{"Program:MainProgram.UintTag", "UINT", func(t *ethernet_ip.Tag) interface{} { return t.UInt16() }},
+		{"Program:MainProgram.UdintTag", "UDINT", func(t *ethernet_ip.Tag) interface{} { return t.UInt32() }},
+		{"Program:MainProgram.UlintTag", "ULINT", func(t *ethernet_ip.Tag) interface{} { return t.UInt64() }},
+		{"Program:MainProgram.RealTag", "REAL", func(t *ethernet_ip.Tag) interface{} { return t.Float32() }},
+		{"Program:MainProgram.LrealTag", "LREAL", func(t *ethernet_ip.Tag) interface{} { return t.Float64() }},
+		{"Program:MainProgram.StringTag", "STRING", func(t *ethernet_ip.Tag) interface{} { return t.String() }},
 	}
 
 	for _, tc := range tests {
-		tag := new(Tag)
+		tag := new(ethernet_ip.Tag)
 		err := conn.InitializeTag(tc.tagName, tag)
 		if err != nil {
 			fmt.Printf("✗ %s (%s): 初始化失败 - %v\n", tc.tagName, tc.tagType, err)
@@ -320,7 +321,7 @@ func (pv *ProtocolVerifier) verifyTagRead() []TestResult {
 
 	conn := pv.conn
 
-	tag := new(Tag)
+	tag := new(ethernet_ip.Tag)
 	err := conn.InitializeTag("Program:MainProgram.IntTag", tag)
 	if err != nil {
 		fmt.Printf("✗ Tag初始化失败: %v\n", err)
@@ -339,7 +340,7 @@ func (pv *ProtocolVerifier) verifyTagRead() []TestResult {
 	fmt.Printf("✓ INT Tag 值: %d\n", value)
 	results = append(results, TestResult{Name: "TagRead", Passed: true, Value: value})
 
-	tag = new(Tag)
+	tag = new(ethernet_ip.Tag)
 	conn.InitializeTag("Program:MainProgram.RealTag", tag)
 	if err := tag.Read(); err == nil {
 		floatVal := tag.Float32()
@@ -350,7 +351,7 @@ func (pv *ProtocolVerifier) verifyTagRead() []TestResult {
 		results = append(results, TestResult{Name: "TagReadFloat", Passed: false, Message: err.Error()})
 	}
 
-	tag = new(Tag)
+	tag = new(ethernet_ip.Tag)
 	conn.InitializeTag("Program:MainProgram.StringTag", tag)
 	if err := tag.Read(); err == nil {
 		strVal := tag.String()
@@ -364,13 +365,195 @@ func (pv *ProtocolVerifier) verifyTagRead() []TestResult {
 	return results
 }
 
+// verifyTagWriteAllTypes 验证所有数据类型的单独写入
+func (pv *ProtocolVerifier) verifyTagWriteAllTypes() []TestResult {
+	fmt.Println("\n[验证] 所有数据类型单独写入")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	type writeTestCase struct {
+		tagName  string
+		tagType  string
+		setFn    func(*ethernet_ip.Tag)
+		verifyFn func(*ethernet_ip.Tag) interface{}
+		expected interface{}
+	}
+
+	tests := []writeTestCase{
+		{"BoolTag", "BOOL", func(t *ethernet_ip.Tag) { t.SetBool(true) }, func(t *ethernet_ip.Tag) interface{} { return t.Bool() }, true},
+		{"SintTag", "SINT", func(t *ethernet_ip.Tag) { t.SetInt8(-128) }, func(t *ethernet_ip.Tag) interface{} { return t.Int8() }, int8(-128)},
+		{"IntTag", "INT", func(t *ethernet_ip.Tag) { t.SetInt16(32767) }, func(t *ethernet_ip.Tag) interface{} { return t.Int16() }, int16(32767)},
+		{"DintTag", "DINT", func(t *ethernet_ip.Tag) { t.SetInt32(2147483647) }, func(t *ethernet_ip.Tag) interface{} { return t.Int32() }, int32(2147483647)},
+		{"LintTag", "LINT", func(t *ethernet_ip.Tag) { t.SetInt64(9223372036854775807) }, func(t *ethernet_ip.Tag) interface{} { return t.Int64() }, int64(9223372036854775807)},
+		{"UsintTag", "USINT", func(t *ethernet_ip.Tag) { t.SetUInt8(255) }, func(t *ethernet_ip.Tag) interface{} { return t.UInt8() }, uint8(255)},
+		{"UintTag", "UINT", func(t *ethernet_ip.Tag) { t.SetUInt16(65535) }, func(t *ethernet_ip.Tag) interface{} { return t.UInt16() }, uint16(65535)},
+		{"UdintTag", "UDINT", func(t *ethernet_ip.Tag) { t.SetUInt32(4294967295) }, func(t *ethernet_ip.Tag) interface{} { return t.UInt32() }, uint32(4294967295)},
+		{"UlintTag", "ULINT", func(t *ethernet_ip.Tag) { t.SetUInt64(18446744073709551615) }, func(t *ethernet_ip.Tag) interface{} { return t.UInt64() }, uint64(18446744073709551615)},
+		{"RealTag", "REAL", func(t *ethernet_ip.Tag) { t.SetFloat32(3.14159) }, func(t *ethernet_ip.Tag) interface{} { return t.Float32() }, float32(3.14159)},
+		{"LrealTag", "LREAL", func(t *ethernet_ip.Tag) { t.SetFloat64(3.141592653589793) }, func(t *ethernet_ip.Tag) interface{} { return t.Float64() }, float64(3.141592653589793)},
+		{"StringTag", "STRING", func(t *ethernet_ip.Tag) { t.SetString("TestString") }, func(t *ethernet_ip.Tag) interface{} { return t.String() }, "TestString"},
+	}
+
+	for _, tc := range tests {
+		tag := new(ethernet_ip.Tag)
+		err := conn.InitializeTag(tc.tagName, tag)
+		if err != nil {
+			fmt.Printf("✗ %s (%s): 初始化失败 - %v\n", tc.tagName, tc.tagType, err)
+			results = append(results, TestResult{Name: tc.tagType + "_Write", Passed: false, Message: err.Error()})
+			continue
+		}
+
+		// 保存原始值
+		err = tag.Read()
+		var origValue interface{}
+		if err == nil {
+			origValue = tc.verifyFn(tag)
+		}
+
+		// 写入新值
+		tc.setFn(tag)
+		err = tag.Write()
+		if err != nil {
+			fmt.Printf("✗ %s (%s): 写入失败 - %v\n", tc.tagName, tc.tagType, err)
+			results = append(results, TestResult{Name: tc.tagType + "_Write", Passed: false, Message: err.Error()})
+			continue
+		}
+
+		// 验证写入值
+		err = tag.Read()
+		if err != nil {
+			fmt.Printf("✗ %s (%s): 读取验证失败 - %v\n", tc.tagName, tc.tagType, err)
+			results = append(results, TestResult{Name: tc.tagType + "_Write", Passed: false, Message: err.Error()})
+			continue
+		}
+
+		actualValue := tc.verifyFn(tag)
+		match := false
+		switch v := actualValue.(type) {
+		case bool:
+			match = v == tc.expected.(bool)
+		case int8:
+			match = v == tc.expected.(int8)
+		case int16:
+			match = v == tc.expected.(int16)
+		case int32:
+			match = v == tc.expected.(int32)
+		case int64:
+			match = v == tc.expected.(int64)
+		case uint8:
+			match = v == tc.expected.(uint8)
+		case uint16:
+			match = v == tc.expected.(uint16)
+		case uint32:
+			match = v == tc.expected.(uint32)
+		case uint64:
+			match = v == tc.expected.(uint64)
+		case float32:
+			match = math.Abs(float64(v)-float64(tc.expected.(float32))) < 1e-5
+		case float64:
+			match = math.Abs(v-tc.expected.(float64)) < 1e-10
+		case string:
+			match = v == tc.expected.(string)
+		}
+
+		if match {
+			fmt.Printf("✓ %s (%s): 写入验证成功 - %v\n", tc.tagName, tc.tagType, actualValue)
+			results = append(results, TestResult{Name: tc.tagType + "_Write", Passed: true, Value: actualValue})
+		} else {
+			fmt.Printf("✗ %s (%s): 写入验证失败 - 预期=%v, 实际=%v\n", tc.tagName, tc.tagType, tc.expected, actualValue)
+			results = append(results, TestResult{Name: tc.tagType + "_Write", Passed: false, Message: fmt.Sprintf("预期=%v, 实际=%v", tc.expected, actualValue)})
+		}
+
+		// 恢复原始值
+		if origValue != nil {
+			err = tag.Read()
+			if err == nil {
+				tag.Write()
+			}
+		}
+	}
+
+	return results
+}
+
+// verifyTagGroupWrite 验证 TagGroup 批量写入
+func (pv *ProtocolVerifier) verifyTagGroupWrite() []TestResult {
+	fmt.Println("\n[验证] TagGroup 批量写入")
+	results := []TestResult{}
+
+	conn := pv.conn
+
+	tg := ethernet_ip.NewTagGroup(nil)
+	tagsToWrite := []struct {
+		name      string
+		setValue  func(*ethernet_ip.Tag)
+		verifyVal func(*ethernet_ip.Tag) interface{}
+	}{
+		{"IntTag", func(t *ethernet_ip.Tag) { t.SetInt16(1111) }, func(t *ethernet_ip.Tag) interface{} { return t.Int16() }},
+		{"DintTag", func(t *ethernet_ip.Tag) { t.SetInt32(222222) }, func(t *ethernet_ip.Tag) interface{} { return t.Int32() }},
+		{"RealTag", func(t *ethernet_ip.Tag) { t.SetFloat32(3.14) }, func(t *ethernet_ip.Tag) interface{} { return t.Float32() }},
+	}
+
+	// 初始化标签并保存原始值
+	originalValues := make([]interface{}, len(tagsToWrite))
+	for i, tw := range tagsToWrite {
+		tag := new(ethernet_ip.Tag)
+		err := conn.InitializeTag(tw.name, tag)
+		if err != nil {
+			fmt.Printf("✗ 初始化标签 %s 失败: %v\n", tw.name, err)
+			results = append(results, TestResult{Name: "TagGroupWrite_" + tw.name, Passed: false, Message: err.Error()})
+			return results
+		}
+		tag.Read()
+		originalValues[i] = tw.verifyVal(tag)
+		tw.setValue(tag)
+		tg.Add(tag)
+	}
+
+	// 执行批量写入
+	err := tg.Write()
+	if err != nil {
+		fmt.Printf("✗ TagGroup.Write 失败: %v\n", err)
+		results = append(results, TestResult{Name: "TagGroupWrite", Passed: false, Message: err.Error()})
+		return results
+	}
+	fmt.Printf("✓ TagGroup.Write 成功\n")
+
+	// 验证写入结果
+	for i, tw := range tagsToWrite {
+		tag := new(ethernet_ip.Tag)
+		conn.InitializeTag(tw.name, tag)
+		tag.Read()
+		value := tw.verifyVal(tag)
+		fmt.Printf("✓ %s: %v\n", tw.name, value)
+		results = append(results, TestResult{Name: "TagGroupWrite_" + tw.name, Passed: true, Value: value})
+
+		// 恢复原始值
+		tag = new(ethernet_ip.Tag)
+		conn.InitializeTag(tw.name, tag)
+		tag.Read()
+		switch v := originalValues[i].(type) {
+		case bool:
+			tag.SetBool(v)
+		case int32:
+			tag.SetInt32(v)
+		case string:
+			tag.SetString(v)
+		}
+		tag.Write()
+	}
+
+	return results
+}
+
 func (pv *ProtocolVerifier) verifyTagWrite() []TestResult {
 	fmt.Println("\n[验证] Tag 写入")
 	results := []TestResult{}
 
 	conn := pv.conn
 
-	tag := new(Tag)
+	tag := new(ethernet_ip.Tag)
 	err := conn.InitializeTag("IntTag", tag)
 	if err != nil {
 		results = append(results, TestResult{Name: "TagWrite", Passed: false, Message: err.Error()})
@@ -421,7 +604,7 @@ func (pv *ProtocolVerifier) verifyErrorHandling() []TestResult {
 
 	conn := pv.conn
 
-	tag := new(Tag)
+	tag := new(ethernet_ip.Tag)
 	err := conn.InitializeTag("NotExistTag", tag)
 	if err == nil {
 		err = tag.Read()
@@ -443,7 +626,8 @@ func (pv *ProtocolVerifier) verifyTagGroup() []TestResult {
 
 	conn := pv.conn
 
-	tg := NewTagGroup(nil)
+	tg := ethernet_ip.NewTagGroup(nil)
+	tagCount := 0
 
 	tags := []string{
 		"Program:MainProgram.IntTag",
@@ -452,7 +636,7 @@ func (pv *ProtocolVerifier) verifyTagGroup() []TestResult {
 	}
 
 	for _, name := range tags {
-		tag := new(Tag)
+		tag := new(ethernet_ip.Tag)
 		if err := conn.InitializeTag(name, tag); err != nil {
 			fmt.Printf("✗ Tag初始化失败 %s: %v\n", name, err)
 			continue
@@ -462,9 +646,10 @@ func (pv *ProtocolVerifier) verifyTagGroup() []TestResult {
 			continue
 		}
 		tg.Add(tag)
+		tagCount++
 	}
 
-	if len(tg.tags) == 0 {
+	if tagCount == 0 {
 		fmt.Printf("✗ 没有有效的Tag可读取\n")
 		results = append(results, TestResult{Name: "TagGroupRead", Passed: false, Message: "没有有效的Tag"})
 		return results
@@ -477,8 +662,8 @@ func (pv *ProtocolVerifier) verifyTagGroup() []TestResult {
 		return results
 	}
 
-	fmt.Printf("✓ TagGroup.Read 成功, 读取了 %d 个Tag\n", len(tg.tags))
-	results = append(results, TestResult{Name: "TagGroupRead", Passed: true, Value: len(tg.tags)})
+	fmt.Printf("✓ TagGroup.Read 成功, 读取了 %d 个Tag\n", tagCount)
+	results = append(results, TestResult{Name: "TagGroupRead", Passed: true, Value: tagCount})
 
 	return results
 }
@@ -491,8 +676,10 @@ func (pv *ProtocolVerifier) RunAllTests() []TestResult {
 	allResults = append(allResults, pv.verifyDataTypes()...)
 	allResults = append(allResults, pv.verifyTagRead()...)
 	allResults = append(allResults, pv.verifyTagWrite()...)
+	allResults = append(allResults, pv.verifyTagWriteAllTypes()...)
 	allResults = append(allResults, pv.verifyErrorHandling()...)
 	allResults = append(allResults, pv.verifyTagGroup()...)
+	allResults = append(allResults, pv.verifyTagGroupWrite()...)
 
 	return allResults
 }

@@ -370,6 +370,93 @@ func (t *Tag) SetString(i string) {
 	t.wValue = io.Bytes()
 }
 
+func (t *Tag) SetValue(val []byte) {
+	t.value = val
+}
+
+func (t *Tag) GetWriteValue() []byte {
+	return t.wValue
+}
+
+func (t *Tag) SetName(name string) {
+	t.name = []byte(name)
+	t.nameLen = types.UInt(len(t.name))
+}
+
+func (t *Tag) SetBool(i bool) {
+	t.changed = true
+	io := bufferx.New(nil)
+	if i {
+		io.WL(uint8(1))
+	} else {
+		io.WL(uint8(0))
+	}
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetInt8(i int8) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetInt16(i int16) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetInt64(i int64) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetUInt8(i uint8) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetUInt16(i uint16) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetUInt32(i uint32) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetUInt64(i uint64) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetFloat32(i float32) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
+func (t *Tag) SetFloat64(i float64) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
 func (t *Tag) dims() types.USInt {
 	return types.USInt((0x6000 & t.Type) >> 13)
 }
