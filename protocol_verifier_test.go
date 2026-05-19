@@ -371,7 +371,7 @@ func (pv *ProtocolVerifier) verifyTagWrite() []TestResult {
 	conn := pv.conn
 
 	tag := new(Tag)
-	err := conn.InitializeTag("Program:MainProgram.IntTag", tag)
+	err := conn.InitializeTag("IntTag", tag)
 	if err != nil {
 		results = append(results, TestResult{Name: "TagWrite", Passed: false, Message: err.Error()})
 		return results

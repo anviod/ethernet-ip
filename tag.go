@@ -203,7 +203,8 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 		return errors.New("error code: " + hex.EncodeToString(errorByte))
 	}
 
-	io := bufferx.New(mr.ResponseData)
+	original := mr.ResponseData
+	io := bufferx.New(original)
 
 	//Read the tag type
 	ttype := types.UInt(0)
@@ -225,18 +226,30 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 		t.Type = ttype
 	}
 
-	//Read the number of elements
+	remainingBeforeCount := io.Len()
 	count := types.UInt(0)
 	io.RL(&count)
-	if io.Error() != nil {
-		return io.Error()
-	}
 
-	//Read the tag value(s)
-	payload := make([]byte, io.Len())
-	io.RL(&payload)
+	var payload []byte
 	if io.Error() != nil {
-		return io.Error()
+		// Some devices return atomic values without count,
+		// i.e. type + payload only.
+		offset := len(original) - remainingBeforeCount
+		payload = original[offset:]
+	} else if int(count) > io.Len() {
+		// Count was actually payload bytes for scalar atomic values.
+		offset := len(original) - io.Len() - 2
+		if offset < 0 {
+			offset = 0
+		}
+		payload = original[offset:]
+		count = 1
+	} else {
+		payload = make([]byte, io.Len())
+		io.RL(&payload)
+		if io.Error() != nil {
+			return io.Error()
+		}
 	}
 
 	//if the tag value changed, call the OnChange callback
@@ -262,14 +275,29 @@ func (t *Tag) Write() error {
 	if t.wValue == nil {
 		return nil
 	}
-	_, err := t.TCP.Send(multiple(t.writeRequest()))
-	if err == nil {
-		if t.wValue != nil {
-			copy(t.value, t.wValue)
-			t.wValue = nil
+	res, err := t.TCP.Send(multiple(t.writeRequest()))
+	if err != nil {
+		return err
+	}
+
+	// Check if the response indicates success
+	if res != nil && res.Packet != nil {
+		itemIdx := findCommonPacketFormatDataItem(res.Packet.Items)
+		if itemIdx >= 0 {
+			item := &res.Packet.Items[itemIdx]
+			mrres := new(packet.MessageRouterResponse)
+			mrres.Decode(item.Data)
+			if mrres.GeneralStatus != 0 {
+				return fmt.Errorf("write failed with status 0x%02X", mrres.GeneralStatus)
+			}
 		}
 	}
-	return err
+
+	if t.wValue != nil {
+		t.value = append([]byte(nil), t.wValue...)
+		t.wValue = nil
+	}
+	return nil
 }
 
 func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
@@ -385,7 +413,7 @@ func (t *Tag) GetValue() interface{} {
 	case USINT:
 		return t.UInt8()
 	case INT:
-		return t.UInt16()
+		return t.Int16()
 	case UINT:
 		return t.UInt16()
 	case UDINT:
@@ -766,7 +794,7 @@ func (tg *TagGroup) Write() error {
 	}
 	for i := range tg.tags {
 		if tg.tags[i].wValue != nil {
-			copy(tg.tags[i].value, tg.tags[i].wValue)
+			tg.tags[i].value = append([]byte(nil), tg.tags[i].wValue...)
 			tg.tags[i].wValue = nil
 		}
 	}

@@ -1,0 +1,58 @@
+[
+  {
+    "test_name": "单独写入_10次",
+    "iterations": 10,
+    "total_time_ms": 150.0803,
+    "avg_time_us": 15008,
+    "throughput_per_sec": 66.63099687300732
+  },
+  {
+    "test_name": "单独写入_50次",
+    "iterations": 50,
+    "total_time_ms": 901.2303,
+    "avg_time_us": 18024.6,
+    "throughput_per_sec": 55.47971478544385
+  },
+  {
+    "test_name": "单独写入_100次",
+    "iterations": 100,
+    "total_time_ms": 1622.2291,
+    "avg_time_us": 16222.29,
+    "throughput_per_sec": 61.64357426457212
+  },
+  {
+    "test_name": "单独写入_500次",
+    "iterations": 500,
+    "total_time_ms": 8032.502100000001,
+    "avg_time_us": 16065.004,
+    "throughput_per_sec": 62.247104796897595
+  },
+  {
+    "test_name": "单独写入_1000次",
+    "iterations": 1000,
+    "total_time_ms": 16415.490999999998,
+    "avg_time_us": 16415.491,
+    "throughput_per_sec": 60.918068183278834
+  },
+  {
+    "test_name": "批量写入_10标签",
+    "iterations": 100,
+    "total_time_ms": 696.1872999999999,
+    "avg_time_us": 6961.87,
+    "throughput_per_sec": 143.63950620759672
+  },
+  {
+    "test_name": "批量写入_50标签",
+    "iterations": 500,
+    "total_time_ms": 715.5898000000001,
+    "avg_time_us": 1431.178,
+    "throughput_per_sec": 698.7243250253148
+  },
+  {
+    "test_name": "批量写入_100标签",
+    "iterations": 1000,
+    "total_time_ms": 705.0864,
+    "avg_time_us": 705.086,
+    "throughput_per_sec": 1418.265903299227
+  }
+]
