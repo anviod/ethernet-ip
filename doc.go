@@ -1,35 +1,32 @@
 /*
-Package ethernet_ip implements an EtherNet/IP client library for communicating with
-Allen-Bradley PLCs and compatible devices using the EtherNet/IP protocol.
+Package ethernet_ip 实现了一个 EtherNet/IP 客户端库，用于与 Allen-Bradley PLC 和兼容设备进行通信。
 
-# Overview
+# 概述
 
-EtherNet/IP is an industrial communication protocol developed by Rockwell Automation
-for use in manufacturing and automation environments. This library enables Go
-applications to connect to and exchange data with PLCs that support the EtherNet/IP
-protocol, such as ControlLogix, CompactLogix, and SLC 500 series controllers.
+EtherNet/IP 是 Rockwell Automation 开发的工业通信协议，用于制造和自动化环境。
+这个库使 Go 应用程序能够连接到支持 EtherNet/IP 协议的 PLC（如 ControlLogix、CompactLogix 和 SLC 500 系列控制器）并交换数据。
 
-This library provides:
+该库提供以下功能：
 
-  - TCP connection management with session registration
-  - Tag-based read/write operations with automatic type handling
-  - Support for all standard CIP data types (BOOL, SINT, INT, DINT, LINT, REAL, etc.)
-  - Connection pooling for high-performance scenarios
-  - Compatibility with cpppo servers via Logix Class 2 object access
-  - Thread-safe operations with mutex protection
-  - Symbolic address parsing for complex tag paths
+  - TCP 连接管理及会话注册
+  - 基于标签的读写操作，自动类型处理
+  - 支持所有标准 CIP 数据类型（BOOL、SINT、INT、DINT、LINT、REAL 等）
+  - 高性能场景的连接池支持
+  - 通过 Logix Class 2 对象访问兼容 cpppo 服务器
+  - 线程安全操作，带互斥锁保护
+  - 符号地址解析，支持复杂标签路径
 
-# Installation
+# 安装
 
-Install the package using:
+使用以下命令安装包：
 
 	go get github.com/anviod/ethernet-ip
 
-# Basic Usage
+# 基本用法
 
-## Creating a Connection
+## 创建连接
 
-Create a TCP connection to a PLC at the specified IP address:
+创建到 PLC 的 TCP 连接：
 
 	conn, err := ethernet_ip.NewTCP("192.168.1.10", nil)
 	if err != nil {
@@ -41,13 +38,13 @@ Create a TCP connection to a PLC at the specified IP address:
 	    log.Fatal(err)
 	}
 
-The second parameter is an optional Config struct. Pass nil to use default settings.
+第二个参数是可选的 Config 结构体。传递 nil 使用默认设置。
 
-## Reading Tags
+## 读取标签
 
-The library supports several ways to read tags:
+库支持多种读取标签的方式：
 
-Method 1: Read all tags and access individual tags
+方法 1：读取所有标签并访问单个标签
 
 	tags, err := conn.AllTags()
 	if err != nil {
@@ -60,9 +57,9 @@ Method 1: Read all tags and access individual tags
 	}
 
 	value := tag.Int32()
-	log.Printf("Tag value: %d", value)
+	log.Printf("标签值: %d", value)
 
-Method 2: Initialize a specific tag by path
+方法 2：通过路径初始化特定标签
 
 	tag := new(ethernet_ip.Tag)
 	if err := conn.InitializeTag("Program:MainProgram.MyTag", tag); err != nil {
@@ -73,16 +70,16 @@ Method 2: Initialize a specific tag by path
 	    log.Fatal(err)
 	}
 
-## Writing Tags
+## 写入标签
 
-To write a value to a tag, use a setter method followed by Write:
+要写入标签值，使用 setter 方法后调用 Write：
 
 	tag.SetInt32(42)
 	if err := tag.Write(); err != nil {
 	    log.Fatal(err)
 	}
 
-Available setter methods:
+可用的 setter 方法：
   - SetBool(value bool)
   - SetInt8(value int8)
   - SetUInt8(value uint8)
@@ -96,49 +93,49 @@ Available setter methods:
   - SetFloat64(value float64)
   - SetString(value string)
 
-## Reading Values
+## 读取值
 
-After a successful Read, use the appropriate type conversion method:
+成功读取后，使用适当的类型转换方法：
 
 	tag.Read()
 
-	// For numeric types
+	// 数值类型
 	intVal := tag.Int32()
 	uintVal := tag.UInt16()
 	floatVal := tag.Float32()
 
-	// For strings
+	// 字符串
 	strVal := tag.String()
 
-	// For booleans
+	// 布尔值
 	boolVal := tag.Bool()
 
-## Tag Paths
+## 标签路径
 
-Tags can be referenced using full symbolic paths:
+可以使用完整的符号路径引用标签：
 
-	// Simple tag
+	// 简单标签
 	tag := new(Tag)
 	conn.InitializeTag("MyTag", tag)
 
-	// Tag in program scope
+	// 程序作用域中的标签
 	conn.InitializeTag("Program:MainProgram.MyTag", tag)
 
-	// Array element
+	// 数组元素
 	conn.InitializeTag("MyArray[0]", tag)
 
-	// Multi-dimensional array
+	// 多维数组
 	conn.InitializeTag("MyArray[1,0,2]", tag)
 
-	// Tag member (UDT)
+	// 标签成员（UDT）
 	conn.InitializeTag("MyUDT.MemberName", tag)
 
-	// Nested UDT members
+	// 嵌套 UDT 成员
 	conn.InitializeTag("ParentUDT.ChildUDT.Member", tag)
 
-## Using Tag Groups
+## 使用标签组
 
-Tag groups allow multiple tags to be read or written simultaneously:
+标签组允许同时读写多个标签：
 
 	lock := new(sync.Mutex)
 	group := ethernet_ip.NewTagGroup(lock)
@@ -148,21 +145,21 @@ Tag groups allow multiple tags to be read or written simultaneously:
 	group.Add(tag1)
 	group.Add(tag2)
 
-	// Read multiple tags
+	// 读取多个标签
 	if err := group.Read(); err != nil {
 	    log.Fatal(err)
 	}
 
-	// Write multiple tags
+	// 写入多个标签
 	tag1.SetInt32(100)
 	tag2.SetString("hello")
 	if err := group.Write(); err != nil {
 	    log.Fatal(err)
 	}
 
-## Connection Pooling
+## 连接池
 
-For high-performance scenarios, use a connection pool to manage multiple connections:
+对于高性能场景，使用连接池管理多个连接：
 
 	pool, err := ethernet_ip.NewTCPPool("192.168.1.10", nil, 10)
 	if err != nil {
@@ -170,113 +167,111 @@ For high-performance scenarios, use a connection pool to manage multiple connect
 	}
 	defer pool.Close()
 
-	// Get a connection from the pool
+	// 从池中获取连接
 	conn, err := pool.Get()
 	if err != nil {
 	    log.Fatal(err)
 	}
 
-	// Use the connection
+	// 使用连接
 	tags, err := conn.AllTags()
 	// ...
 
-	// Return the connection to the pool
+	// 将连接放回池中
 	pool.Put(conn)
 
-## cpppo Server Compatibility
+## cpppo 服务器兼容性
 
-The library supports accessing tags via Logix Class 2 object attributes,
-which is used by cpppo servers. This allows communication with software
-simulators that emulate PLC behavior.
+库支持通过 Logix Class 2 对象属性访问标签，这是 cpppo 服务器使用的方式。
+这允许与模拟 PLC 行为的软件模拟器通信。
 
-	// Read a Class 2 attribute (attribute ID 1 corresponds to BoolTag)
+	// 读取 Class 2 属性（属性 ID 1 对应 BoolTag）
 	data, err := conn.ReadClass2Attribute(1)
 	if err != nil {
 	    log.Fatal(err)
 	}
 
-## Discovering Devices
+## 设备发现
 
-List identity information of devices on the network:
+列出网络上设备的身份信息：
 
 	identities, err := conn.ListIdentity()
 	if err != nil {
 	    log.Fatal(err)
 	}
 	for _, identity := range identities {
-	    log.Printf("Device: %s, Type: %d, Vendor: %d",
+	    log.Printf("设备: %s, 类型: %d, 供应商: %d",
 	        identity.ProductName, identity.DeviceType, identity.VendorID)
 	}
 
 ## Forward Open
 
-For time-critical communications, use Forward Open to establish a dedicated
-connection path:
+对于时间关键的通信，使用 Forward Open 建立专用连接路径：
 
 	if err := conn.ForwardOpen(); err != nil {
 	    log.Fatal(err)
 	}
 	defer conn.ForwardClose()
 
-## Configuration
+## 配置
 
-The Config struct allows customization of connection parameters:
+Config 结构体允许自定义连接参数：
 
 	config := &ethernet_ip.Config{
-	    TCPPort:     44818,      // Default EtherNet/IP port
-	    UDPPort:     44818,      // Default UDP port
-	    Slot:        0,           // Controller slot number
-	    TimeTick:    3,           // Time tick in milliseconds
-	    TimeTickOut: 250,         // Connection timeout
+	    TCPPort:     44818,      // 默认 EtherNet/IP 端口
+	    UDPPort:     44818,      // 默认 UDP 端口
+	    Slot:        0,           // PLC 机架中的控制器槽号
+	    TimeTick:    3,           // 时间刻度（毫秒）
+	    TimeTickOut: 250,         // 连接超时（时间刻度单位）
 	}
 
 	conn, err := ethernet_ip.NewTCP("192.168.1.10", config)
 
-# Data Types
+# 数据类型
 
-The library supports all standard CIP data types:
+库支持所有标准 CIP 数据类型：
 
-	CIP Type  | Go Type   | Size (bytes) | Description
-	----------|-----------|--------------|-------------------------------------
-	BOOL      | bool      | 1            | Boolean
-	SINT      | int8      | 1            | Signed 8-bit integer
-	INT       | int16     | 2            | Signed 16-bit integer
-	DINT      | int32     | 4            | Signed 32-bit integer
-	LINT      | int64     | 8            | Signed 64-bit integer
-	USINT     | uint8     | 1            | Unsigned 8-bit integer
-	UINT      | uint16    | 2            | Unsigned 16-bit integer
-	UDINT     | uint32    | 4            | Unsigned 32-bit integer
-	ULINT     | uint64    | 8            | Unsigned 64-bit integer
-	REAL      | float32   | 4            | Single-precision floating point
-	LREAL     | float64   | 8            | Double-precision floating point
-	STRING    | string    | variable     | CIP string (up to 88 bytes)
-	STRING2   | string    | variable     | CIP string (extended format)
+	CIP 类型 | Go 类型   | 大小（字节） | 描述
+	----------|-----------|-------------|-------------------------------------
+	BOOL      | bool      | 1           | 布尔值
+	SINT      | int8      | 1           | 有符号 8 位整数
+	INT       | int16     | 2           | 有符号 16 位整数
+	DINT      | int32     | 4           | 有符号 32 位整数
+	LINT      | int64     | 8           | 有符号 64 位整数
+	USINT     | uint8     | 1           | 无符号 8 位整数
+	UINT      | uint16    | 2           | 无符号 16 位整数
+	UDINT     | uint32    | 4           | 无符号 32 位整数
+	ULINT     | uint64    | 8           | 无符号 64 位整数
+	REAL      | float32   | 4           | 单精度浮点数
+	LREAL     | float64   | 8           | 双精度浮点数
+	STRING    | string    | 可变        | CIP 字符串（最多 88 字节）
+	STRING2   | string    | 可变        | CIP 字符串（扩展格式）
 
-# Error Handling
+# 错误处理
 
-All methods return errors that should be handled appropriately:
+所有方法都返回应该适当处理的错误：
 
 	if err := tag.Read(); err != nil {
 	    switch {
 	    case errors.Is(err, ethernet_ip.ErrBufferTooShort):
-	        log.Println("Buffer too short for tag data")
+	        log.Println("缓冲区太小，无法容纳标签数据")
 	    case errors.Is(err, ethernet_ip.ErrTagNotFound):
-	        log.Println("Tag does not exist on device")
+	        log.Println("设备上不存在该标签")
 	    default:
-	        log.Printf("Read failed: %v", err)
+	        log.Printf("读取失败: %v", err)
 	    }
 	    return
 	}
 
-# Thread Safety
+# 线程安全
 
-The library is designed to be thread-safe:
+库设计为线程安全：
 
-  - Each Tag has its own mutex (Tag.Lock) protecting read/write operations
-  - EIPTCP has a request lock protecting concurrent requests
-  - Connection pools use mutexes to protect internal state
+  - 每个 Tag 有自己的互斥锁（Tag.Lock）保护读写操作
+  - EIPTCP 有请求锁保护并发请求
+  - 连接池使用互斥锁保护内部状态
 
-You can safely use multiple tags concurrently:
+您可以安全地并发使用多个标签：
 
 	var wg sync.WaitGroup
 	for _, t := range tags {
@@ -288,41 +283,41 @@ You can safely use multiple tags concurrently:
 	}
 	wg.Wait()
 
-# Performance Considerations
+# 性能考虑
 
-For high-performance scenarios:
+对于高性能场景：
 
- 1. Use connection pooling (EIPTCPPool) to reduce connection overhead
- 2. Use Tag groups for batch read/write operations
- 3. For continuous monitoring, implement caching rather than polling
- 4. Consider Forward Open for time-critical applications
+ 1. 使用连接池（EIPTCPPool）减少连接开销
+ 2. 使用标签组进行批量读写操作
+ 3. 对于连续监控，实现缓存而非轮询
+ 4. 考虑使用 Forward Open 进行时间关键的应用
 
-# Common Issues
+# 常见问题
 
-1. Connection Refused: Ensure the PLC is reachable and the EtherNet/IP port is not blocked by firewall.
+1. 连接拒绝：确保 PLC 可达，且 EtherNet/IP 端口未被防火墙阻止。
 
-2. Tag Not Found: Verify the tag path is correct. Tag names are case-sensitive.
+2. 标签未找到：验证标签路径是否正确。标签名称区分大小写。
 
-3. Permission Denied: Some PLCs require appropriate access levels to read/write tags.
+3. 权限拒绝：某些 PLC 需要适当的访问级别才能读写标签。
 
-4. Session Expired: If a session expires, reconnect using Connect().
+4. 会话过期：如果会话过期，使用 Connect() 重新连接。
 
-# Examples
+# 示例
 
-See the examples directory for complete working examples:
+请查看 examples 目录获取完整的工作示例：
 
-  - Basic read/write operations
-  - Tag group operations
-  - Connection pooling
-  - cpppo server communication
+  - 基本读写操作
+  - 标签组操作
+  - 连接池
+  - cpppo 服务器通信
 
-# References
+# 参考资料
 
-For more information about the EtherNet/IP protocol, see:
+有关 EtherNet/IP 协议的更多信息，请参阅：
   - https://www.rockwellautomation.com/en-us/technologies/industrial-protocols/ethernet-ip.html
   - https://www.odva.org/ethernet-ip
 
-For cpppo server implementation:
+cpppo 服务器实现：
   - https://github.com/pjkundert/cpppo
 */
 package ethernet_ip
