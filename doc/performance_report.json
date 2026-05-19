@@ -2,57 +2,57 @@
   {
     "test_name": "单独写入_10次",
     "iterations": 10,
-    "total_time_ms": 150.0803,
-    "avg_time_us": 15008,
-    "throughput_per_sec": 66.63099687300732
+    "total_time_ms": 26.9667,
+    "avg_time_us": 2696.6,
+    "throughput_per_sec": 370.8277245639993
   },
   {
     "test_name": "单独写入_50次",
     "iterations": 50,
-    "total_time_ms": 901.2303,
-    "avg_time_us": 18024.6,
-    "throughput_per_sec": 55.47971478544385
+    "total_time_ms": 137.8667,
+    "avg_time_us": 2757.32,
+    "throughput_per_sec": 362.66915796200243
   },
   {
     "test_name": "单独写入_100次",
     "iterations": 100,
-    "total_time_ms": 1622.2291,
-    "avg_time_us": 16222.29,
-    "throughput_per_sec": 61.64357426457212
+    "total_time_ms": 263.21729999999997,
+    "avg_time_us": 2632.17,
+    "throughput_per_sec": 379.9142381598778
   },
   {
     "test_name": "单独写入_500次",
     "iterations": 500,
-    "total_time_ms": 8032.502100000001,
-    "avg_time_us": 16065.004,
-    "throughput_per_sec": 62.247104796897595
+    "total_time_ms": 1353.4888,
+    "avg_time_us": 2706.976,
+    "throughput_per_sec": 369.4156907689225
   },
   {
     "test_name": "单独写入_1000次",
     "iterations": 1000,
-    "total_time_ms": 16415.490999999998,
-    "avg_time_us": 16415.491,
-    "throughput_per_sec": 60.918068183278834
+    "total_time_ms": 2800.5097,
+    "avg_time_us": 2800.509,
+    "throughput_per_sec": 357.0778562202445
   },
   {
     "test_name": "批量写入_10标签",
     "iterations": 100,
-    "total_time_ms": 696.1872999999999,
-    "avg_time_us": 6961.87,
-    "throughput_per_sec": 143.63950620759672
+    "total_time_ms": 134.2969,
+    "avg_time_us": 1342.96,
+    "throughput_per_sec": 744.6188258999277
   },
   {
     "test_name": "批量写入_50标签",
     "iterations": 500,
-    "total_time_ms": 715.5898000000001,
-    "avg_time_us": 1431.178,
-    "throughput_per_sec": 698.7243250253148
+    "total_time_ms": 134.07659999999998,
+    "avg_time_us": 268.152,
+    "throughput_per_sec": 3729.21151043508
   },
   {
     "test_name": "批量写入_100标签",
     "iterations": 1000,
-    "total_time_ms": 705.0864,
-    "avg_time_us": 705.086,
-    "throughput_per_sec": 1418.265903299227
+    "total_time_ms": 125.8207,
+    "avg_time_us": 125.82,
+    "throughput_per_sec": 7947.81780740371
   }
 ]

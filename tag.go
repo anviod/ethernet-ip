@@ -226,6 +226,7 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 		t.Type = ttype
 	}
 
+	// Record remaining length after reading ttype (including possible extended ttype)
 	remainingBeforeCount := io.Len()
 	count := types.UInt(0)
 	io.RL(&count)
@@ -235,10 +236,14 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 		// Some devices return atomic values without count,
 		// i.e. type + payload only.
 		offset := len(original) - remainingBeforeCount
+		if offset < 0 {
+			offset = 0
+		}
 		payload = original[offset:]
 	} else if int(count) > io.Len() {
 		// Count was actually payload bytes for scalar atomic values.
-		offset := len(original) - io.Len() - 2
+		// Use remainingBeforeCount which correctly accounts for extended ttype (0x2a0 case)
+		offset := len(original) - remainingBeforeCount
 		if offset < 0 {
 			offset = 0
 		}
@@ -293,10 +298,8 @@ func (t *Tag) Write() error {
 		}
 	}
 
-	if t.wValue != nil {
-		t.value = append([]byte(nil), t.wValue...)
-		t.wValue = nil
-	}
+	t.value = append([]byte(nil), t.wValue...)
+	t.wValue = nil
 	return nil
 }
 
