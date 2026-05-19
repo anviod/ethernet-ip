@@ -408,6 +408,13 @@ func (t *Tag) SetInt16(i int16) {
 	t.wValue = io.Bytes()
 }
 
+func (t *Tag) SetInt32Direct(i int32) {
+	t.changed = true
+	io := bufferx.New(nil)
+	io.WL(i)
+	t.wValue = io.Bytes()
+}
+
 func (t *Tag) SetInt64(i int64) {
 	t.changed = true
 	io := bufferx.New(nil)
