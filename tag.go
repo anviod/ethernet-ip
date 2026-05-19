@@ -341,27 +341,27 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 	return result
 }
 
-func (t *Tag) SetInt32(i int32) {
-	t.changed = true
-	io := bufferx.New(nil)
-	switch t.Type {
-	case INT:
-		io.WL(int16(i))
-	case UINT:
-		io.WL(uint16(i))
-	case DINT:
-		io.WL(i)
-	case UDINT:
-		io.WL(uint32(i))
-	case LINT:
-		io.WL(int64(i))
-	case ULINT:
-		io.WL(uint64(i))
-	default:
-		io.WL(i)
-	}
-	t.wValue = io.Bytes()
-}
+// func (t *Tag) SetInt32(i int32) {
+// 	t.changed = true
+// 	io := bufferx.New(nil)
+// 	switch t.Type {
+// 	case INT:
+// 		io.WL(int16(i))
+// 	case UINT:
+// 		io.WL(uint16(i))
+// 	case DINT:
+// 		io.WL(i)
+// 	case UDINT:
+// 		io.WL(uint32(i))
+// 	case LINT:
+// 		io.WL(int64(i))
+// 	case ULINT:
+// 		io.WL(uint64(i))
+// 	default:
+// 		io.WL(i)
+// 	}
+// 	t.wValue = io.Bytes()
+// }
 
 func (t *Tag) SetString(i string) {
 	t.changed = true
@@ -381,6 +381,10 @@ func (t *Tag) GetWriteValue() []byte {
 func (t *Tag) SetName(name string) {
 	t.name = []byte(name)
 	t.nameLen = types.UInt(len(t.name))
+}
+
+func (t *Tag) IsChanged() bool {
+	return t.changed
 }
 
 func (t *Tag) SetBool(i bool) {
@@ -408,7 +412,7 @@ func (t *Tag) SetInt16(i int16) {
 	t.wValue = io.Bytes()
 }
 
-func (t *Tag) SetInt32Direct(i int32) {
+func (t *Tag) SetInt32(i int32) {
 	t.changed = true
 	io := bufferx.New(nil)
 	io.WL(i)

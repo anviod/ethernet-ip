@@ -132,7 +132,6 @@ func TestAccessMode_CIPModeWrite(t *testing.T) {
 				Lock: new(sync.Mutex),
 			}
 
-			// 设置值
 			switch v := tc.setValue.(type) {
 			case int32:
 				tag.SetInt32(v)
@@ -140,7 +139,6 @@ func TestAccessMode_CIPModeWrite(t *testing.T) {
 				tag.SetString(v)
 			}
 
-			// 验证写入值
 			if len(tag.GetWriteValue()) != len(tc.expected) {
 				t.Errorf("写入值长度不匹配: 预期=%d, 实际=%d", len(tc.expected), len(tag.GetWriteValue()))
 				return
@@ -157,7 +155,6 @@ func TestAccessMode_CIPModeWrite(t *testing.T) {
 
 // TestAccessMode_LogixModeAttributeMapping 测试 Logix 模式的属性映射
 func TestAccessMode_LogixModeAttributeMapping(t *testing.T) {
-	// 标签名到属性 ID 的映射（Logix Class 2 模式）
 	expectedMapping := map[string]int{
 		"BoolTag":   1,
 		"SintTag":   2,
@@ -173,7 +170,6 @@ func TestAccessMode_LogixModeAttributeMapping(t *testing.T) {
 		"StringTag": 12,
 	}
 
-	// 验证 tagToAttrLogix 映射的完整性
 	for tagName, expectedAttrID := range expectedMapping {
 		actualAttrID, exists := tagToAttrLogix[tagName]
 		if !exists {
@@ -188,7 +184,6 @@ func TestAccessMode_LogixModeAttributeMapping(t *testing.T) {
 
 // TestAccessMode_ModeComparison 测试两种模式的基本功能
 func TestAccessMode_ModeComparison(t *testing.T) {
-	// 测试标准 CIP 模式标签初始化
 	t.Run("CIP模式标签初始化", func(t *testing.T) {
 		tag := &ethernet_ip.Tag{
 			Type: ethernet_ip.INT,
@@ -204,9 +199,7 @@ func TestAccessMode_ModeComparison(t *testing.T) {
 		}
 	})
 
-	// 测试 Logix 模式属性访问
 	t.Run("Logix模式属性访问", func(t *testing.T) {
-		// 验证所有预期的标签都有映射
 		expectedTags := []string{"BoolTag", "SintTag", "IntTag", "DintTag", "LintTag",
 			"UsintTag", "UintTag", "UdintTag", "UlintTag", "RealTag", "LrealTag", "StringTag"}
 		for _, tagName := range expectedTags {
@@ -262,20 +255,17 @@ func TestAccessMode_CIPModeTagPathParsing(t *testing.T) {
 // TestAccessMode_CIPvsLogixComparison 对比测试两种模式的差异
 func TestAccessMode_CIPvsLogixComparison(t *testing.T) {
 	t.Run("CIP模式支持UDT", func(t *testing.T) {
-		// CIP模式支持UDT标签路径
 		tag := &ethernet_ip.Tag{
 			Type: ethernet_ip.DINT,
 			Lock: new(sync.Mutex),
 		}
 		tag.SetName("MyUDT.Field1")
-		// 验证标签名称可以包含UDT路径
 		if !contains(tag.Name(), "MyUDT") {
 			t.Error("CIP模式应该支持UDT标签路径")
 		}
 	})
 
 	t.Run("Logix模式仅支持预定义属性", func(t *testing.T) {
-		// Logix模式只支持预定义的12个属性
 		if len(tagToAttrLogix) != 12 {
 			t.Errorf("Logix模式应该只支持12个预定义属性: 实际=%d", len(tagToAttrLogix))
 		}
@@ -293,4 +283,65 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestTag_SetInt32 测试 SetInt32 方法
+func TestTag_SetInt32(t *testing.T) {
+	testCases := []struct {
+		name     string
+		value    int32
+		expected []byte
+	}{
+		{
+			name:     "SetInt32 写入正值",
+			value:    12345,
+			expected: []byte{0x39, 0x30, 0x00, 0x00}, // 12345 in little-endian
+		},
+		{
+			name:     "SetInt32 写入负值",
+			value:    -1,
+			expected: []byte{0xFF, 0xFF, 0xFF, 0xFF}, // -1 in two's complement
+		},
+		{
+			name:     "SetInt32 写入零",
+			value:    0,
+			expected: []byte{0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			name:     "SetInt32 写入最大值",
+			value:    2147483647,
+			expected: []byte{0xFF, 0xFF, 0xFF, 0x7F}, // max int32 in little-endian
+		},
+		{
+			name:     "SetInt32 写入最小值",
+			value:    -2147483648,
+			expected: []byte{0x00, 0x00, 0x00, 0x80}, // min int32 in little-endian
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tag := &ethernet_ip.Tag{
+				Lock: new(sync.Mutex),
+			}
+
+			tag.SetInt32(tc.value)
+
+			wValue := tag.GetWriteValue()
+			if len(wValue) != len(tc.expected) {
+				t.Errorf("SetInt32 写入值长度不匹配: 预期=%d, 实际=%d", len(tc.expected), len(wValue))
+				return
+			}
+
+			for i := range tc.expected {
+				if wValue[i] != tc.expected[i] {
+					t.Errorf("SetInt32 写入值内容不匹配: 索引=%d, 预期=0x%02X, 实际=0x%02X", i, tc.expected[i], wValue[i])
+				}
+			}
+
+			if !tag.IsChanged() {
+				t.Error("SetInt32 应该设置 changed 标志")
+			}
+		})
+	}
 }
