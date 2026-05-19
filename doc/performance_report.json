@@ -2,57 +2,57 @@
   {
     "test_name": "单独写入_10次",
     "iterations": 10,
-    "total_time_ms": 26.9667,
-    "avg_time_us": 2696.6,
-    "throughput_per_sec": 370.8277245639993
+    "total_time_ms": 36.7533,
+    "avg_time_us": 3675.3,
+    "throughput_per_sec": 272.08441146781377
   },
   {
     "test_name": "单独写入_50次",
     "iterations": 50,
-    "total_time_ms": 137.8667,
-    "avg_time_us": 2757.32,
-    "throughput_per_sec": 362.66915796200243
+    "total_time_ms": 202.55870000000002,
+    "avg_time_us": 4051.16,
+    "throughput_per_sec": 246.8420265335431
   },
   {
     "test_name": "单独写入_100次",
     "iterations": 100,
-    "total_time_ms": 263.21729999999997,
-    "avg_time_us": 2632.17,
-    "throughput_per_sec": 379.9142381598778
+    "total_time_ms": 286.09020000000004,
+    "avg_time_us": 2860.9,
+    "throughput_per_sec": 349.54011007717145
   },
   {
     "test_name": "单独写入_500次",
     "iterations": 500,
-    "total_time_ms": 1353.4888,
-    "avg_time_us": 2706.976,
-    "throughput_per_sec": 369.4156907689225
+    "total_time_ms": 1538.9884,
+    "avg_time_us": 3077.976,
+    "throughput_per_sec": 324.88873860257814
   },
   {
     "test_name": "单独写入_1000次",
     "iterations": 1000,
-    "total_time_ms": 2800.5097,
-    "avg_time_us": 2800.509,
-    "throughput_per_sec": 357.0778562202445
+    "total_time_ms": 3201.0555,
+    "avg_time_us": 3201.055,
+    "throughput_per_sec": 312.3969578159454
   },
   {
     "test_name": "批量写入_10标签",
     "iterations": 100,
-    "total_time_ms": 134.2969,
-    "avg_time_us": 1342.96,
-    "throughput_per_sec": 744.6188258999277
+    "total_time_ms": 289.7409,
+    "avg_time_us": 2897.4,
+    "throughput_per_sec": 345.13594732397115
   },
   {
     "test_name": "批量写入_50标签",
     "iterations": 500,
-    "total_time_ms": 134.07659999999998,
-    "avg_time_us": 268.152,
-    "throughput_per_sec": 3729.21151043508
+    "total_time_ms": 245.5878,
+    "avg_time_us": 491.174,
+    "throughput_per_sec": 2035.9317523101718
   },
   {
     "test_name": "批量写入_100标签",
     "iterations": 1000,
-    "total_time_ms": 125.8207,
-    "avg_time_us": 125.82,
-    "throughput_per_sec": 7947.81780740371
+    "total_time_ms": 218.84509999999997,
+    "avg_time_us": 218.845,
+    "throughput_per_sec": 4569.442039140927
   }
 ]

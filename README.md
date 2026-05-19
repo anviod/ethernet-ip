@@ -17,6 +17,9 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 - [支持的数据类型](#支持的数据类型)
 - [架构设计](#架构设计)
 - [调用流程](#调用流程)
+- [访问模式](#访问模式)
+  - [标准 CIP 模式](#标准-cip-模式)
+  - [Logix 模式](#logix-模式)
 - [cpppo 兼容性](#cpppo-兼容性)
 - [API 参考](#api-参考)
 - [示例代码](#示例代码)
@@ -421,6 +424,152 @@ ethernet-ip/
    │完成   │
    └───────┘
 ```
+
+---
+
+## 访问模式
+
+本库支持两种访问模式来与 PLC 通信：**标准 CIP 模式**和 **Logix 模式**。
+
+### 标准 CIP 模式
+
+标准 CIP（Common Industrial Protocol）模式使用 Symbolic Addressing 方式访问标签。这种模式适用于大多数 Allen-Bradley PLC，包括 ControlLogix、CompactLogix 等。
+
+**特点**：
+- 使用符号地址（如 `Program:MainProgram.Counter`）
+- 通过 Symbol Object (Class 0x6B) 访问标签
+- 支持完整的标签路径解析
+- 适用于标准 CIP 设备
+
+**使用示例**：
+
+```go
+// 创建连接
+conn, err := ethernet_ip.NewTCP("192.168.1.10", nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer conn.Close()
+
+// 建立连接
+if err := conn.Connect(); err != nil {
+    log.Fatal(err)
+}
+
+// 使用标准 CIP 模式读取标签
+tags, err := conn.AllTags()
+if err != nil {
+    log.Fatal(err)
+}
+
+tag := tags["Program:MainProgram.IntTag"]
+if err := tag.Read(); err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("值: %d\n", tag.Int32())
+```
+
+**标准 CIP 模式调用流程**：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    标准 CIP 模式流程                            │
+├─────────────────────────────────────────────────────────────────┤
+│  1. AllTags()                                                  │
+│     └─ 查询 Symbol Object (Class 0x6B)                         │
+│         └─ 获取所有标签名称和类型                               │
+│                                                                │
+│  2. InitializeTag(name, tag)                                   │
+│     └─ 构建符号路径                                             │
+│         └─ 设置标签类型和连接引用                               │
+│                                                                │
+│  3. tag.Read()                                                 │
+│     └─ SendRRData()                                            │
+│         └─ CIP Read Tag Service (0x4C)                         │
+│             └─ 返回 Message Router Response                    │
+│                 └─ 解析响应数据到 tag.value                     │
+│                                                                │
+│  4. tag.Write()                                                │
+│     └─ SendRRData()                                            │
+│         └─ CIP Write Tag Service (0x4D)                        │
+│             └─ 返回状态码                                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Logix 模式
+
+Logix 模式使用 Logix Class 2 对象（Class 0x02）的属性访问方式。这种模式主要用于与 cpppo 服务器或某些特定的 Logix 设备通信。
+
+**特点**：
+- 使用属性 ID 访问（如属性 1 对应 BoolTag）
+- 通过 Class 2, Instance 1 访问标签
+- 使用 Get Attribute Single (0x0E) 服务
+- 适用于 cpppo 模拟器和部分 Logix 设备
+
+**使用示例**：
+
+```go
+// 创建连接
+conn, err := ethernet_ip.NewTCP("127.0.0.1", nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer conn.Close()
+
+// 建立连接
+if err := conn.Connect(); err != nil {
+    log.Fatal(err)
+}
+
+// 使用 Logix 模式（Class 2 属性访问）读取标签
+// 属性 ID 1 = BoolTag, 3 = IntTag, 10 = RealTag
+data, err := conn.ReadClass2Attribute(3) // 读取 IntTag
+if err != nil {
+    log.Fatal(err)
+}
+
+// 解析 INT 类型数据
+intValue := int16(binary.LittleEndian.Uint16(data[:2]))
+fmt.Printf("IntTag 值: %d\n", intValue)
+```
+
+**Logix 模式调用流程**：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Logix 模式流程                              │
+├─────────────────────────────────────────────────────────────────┤
+│  1. ReadClass2Attribute(attrID)                                │
+│     └─ 构建 CIP 路径                                           │
+│         └─ Class 2, Instance 1, Attribute attrID               │
+│                                                                │
+│  2. SendRRData()                                               │
+│     └─ CIP Get Attribute Single (0x0E)                         │
+│         └─ 返回 Message Router Response                        │
+│             └─ 提取 ResponseData                               │
+│                                                                │
+│  3. 解析数据                                                   │
+│     └─ 根据属性 ID 对应的数据类型解析                           │
+│         └─ 返回原始字节数组供上层处理                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 模式对比
+
+| 特性 | 标准 CIP 模式 | Logix 模式 |
+|------|-------------|-----------|
+| **访问方式** | Symbolic Addressing | Class 2 属性 |
+| **地址格式** | `Program:MainProgram.Tag` | 属性 ID (1-12) |
+| **适用设备** | 标准 Allen-Bradley PLC | cpppo 服务器、部分 Logix |
+| **服务类型** | Read/Write Tag (0x4C/0x4D) | Get Attribute Single (0x0E) |
+| **标签发现** | `AllTags()` 自动发现 | 需预先知道属性映射 |
+| **UDT 支持** | ✅ | ❌ |
+
+### 选择建议
+
+- **生产环境**：使用 **标准 CIP 模式**，支持完整功能
+- **测试环境**：使用 **Logix 模式**配合 cpppo 模拟器
+- **兼容性测试**：两种模式都应测试
 
 ---
 
