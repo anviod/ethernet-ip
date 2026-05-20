@@ -366,6 +366,7 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 func (t *Tag) SetString(i string) {
 	t.changed = true
 	io := bufferx.New(nil)
+	io.WL(types.UDInt(len(i)))
 	io.WL([]byte(i))
 	t.wValue = io.Bytes()
 }

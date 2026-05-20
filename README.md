@@ -598,14 +598,16 @@ cpppo 服务器将标签映射到 Logix Class 2, Instance 1 的属性，使用 C
 
 ### 使用方法
 
-使用 `ReadClass2Attribute` 方法直接读取 Class 2 对象的属性：
+使用 `ReadClass2Attribute` 和 `WriteClass2Attribute` 方法直接访问 Class 2 对象的属性：
 
 ```go
 package main
 
 import (
+    "encoding/binary"
     "fmt"
     "log"
+    "math"
 
     "github.com/anviod/ethernet-ip"
 )
@@ -631,7 +633,12 @@ func main() {
     }
     fmt.Printf("BoolTag 值: %v\n", data[0] != 0)
 
-    // 属性 ID 10 = RealTag
+    // 写入 DINT 类型标签 (属性 ID 4 = DintTag)
+    if err := conn.WriteClass2Attribute(4, []byte{0x39, 0x30, 0x00, 0x00}); err != nil {
+        log.Fatal(err)
+    }
+
+    // 读取 REAL 类型标签
     data, err = conn.ReadClass2Attribute(10)
     if err != nil {
         log.Fatal(err)

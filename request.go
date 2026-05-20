@@ -2,6 +2,7 @@ package ethernet_ip
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 
@@ -302,6 +303,87 @@ func (t *EIPTCP) ForwardOpen() error {
 	io1 := bufferx.New(rmr.ResponseData)
 	io1.RL(&t.connID)
 	t.established = true
+
+	return nil
+}
+
+// ReadClass2Attribute 使用 Get Attribute Single 服务读取 Class 2 对象的属性
+// attrID: 属性ID (1-12)，对应 cpppo 服务器的标签
+func (t *EIPTCP) ReadClass2Attribute(attrID int) ([]byte, error) {
+	// CIP Get Attribute Single (0x0E)
+	// Path: Class 2, Instance 1, Attribute attrID
+	pathData := []byte{
+		0x20, 0x02, // Class ID: 2
+		0x24, 0x01, // Instance ID: 1
+		0x30, byte(attrID), // Attribute ID
+	}
+
+	mr := packet.NewMessageRouter(packet.ServiceGetAttributeSingle, pathData, nil)
+	response, err := t.Send(mr)
+	if err != nil {
+		return nil, err
+	}
+
+	if response == nil || response.Packet == nil {
+		return nil, errors.New("空响应")
+	}
+
+	itemIdx := findCommonPacketFormatDataItem(response.Packet.Items)
+	if itemIdx < 0 {
+		return nil, errors.New("未找到 CIP 响应数据")
+	}
+
+	item := &response.Packet.Items[itemIdx]
+	rmr := &packet.MessageRouterResponse{}
+	rmr.Decode(item.Data)
+
+	if rmr.GeneralStatus != 0 {
+		return nil, fmt.Errorf("CIP error: 0x%02X", rmr.GeneralStatus)
+	}
+
+	return rmr.ResponseData, nil
+}
+
+// WriteClass2Attribute 使用 Set Attribute Single 服务写入 Class 2 对象的属性
+// attrID: 属性ID (1-12)，对应 cpppo 服务器的标签
+// value: 要写入的值（字节数组格式）
+func (t *EIPTCP) WriteClass2Attribute(attrID int, value []byte) error {
+	// CIP Set Attribute Single (0x10)
+	// Path: Class 2, Instance 1, Attribute attrID
+	pathData := []byte{
+		0x20, 0x02, // Class ID: 2
+		0x24, 0x01, // Instance ID: 1
+		0x30, byte(attrID), // Attribute ID
+	}
+
+	mr := packet.NewMessageRouter(packet.ServiceSetAttributeSingle, pathData, value)
+	response, err := t.Send(mr)
+	if err != nil {
+		return err
+	}
+
+	if response == nil || response.Packet == nil {
+		return errors.New("空响应")
+	}
+
+	itemIdx := -1
+	for i, item := range response.Packet.Items {
+		if item.TypeID == packet.ItemIDUnconnectedMessage {
+			itemIdx = i
+			break
+		}
+	}
+
+	if itemIdx < 0 {
+		return errors.New("未找到响应数据")
+	}
+
+	rmr := &packet.MessageRouterResponse{}
+	rmr.Decode(response.Packet.Items[itemIdx].Data)
+
+	if rmr.GeneralStatus != 0 {
+		return fmt.Errorf("写入失败，状态码: 0x%02X", rmr.GeneralStatus)
+	}
 
 	return nil
 }

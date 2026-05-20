@@ -121,7 +121,7 @@ func TestAccessMode_CIPModeWrite(t *testing.T) {
 			name:     "CIP模式写入STRING",
 			tagType:  ethernet_ip.STRING,
 			setValue: "Test",
-			expected: []byte{'T', 'e', 's', 't'},
+			expected: []byte{0x04, 0x00, 0x00, 0x00, 'T', 'e', 's', 't'}, // 4字节长度头 + 4字节内容
 		},
 	}
 
@@ -341,6 +341,280 @@ func TestTag_SetInt32(t *testing.T) {
 
 			if !tag.IsChanged() {
 				t.Error("SetInt32 应该设置 changed 标志")
+			}
+		})
+	}
+}
+
+// TestClass2AttributeWriteDataTypes 测试所有12种数据类型的 Class 2 属性写入
+func TestClass2AttributeWriteDataTypes(t *testing.T) {
+	testCases := []struct {
+		name     string
+		attrID   int
+		value    interface{}
+		expected []byte
+	}{
+		{
+			name:     "BOOL 类型写入",
+			attrID:   1,
+			value:    true,
+			expected: []byte{0x01},
+		},
+		{
+			name:     "SINT 类型写入",
+			attrID:   2,
+			value:    int8(-128),
+			expected: []byte{0x80},
+		},
+		{
+			name:     "INT 类型写入",
+			attrID:   3,
+			value:    int16(32767),
+			expected: []byte{0xFF, 0x7F}, // little-endian
+		},
+		{
+			name:     "DINT 类型写入",
+			attrID:   4,
+			value:    int32(12345),
+			expected: []byte{0x39, 0x30, 0x00, 0x00}, // little-endian
+		},
+		{
+			name:     "LINT 类型写入",
+			attrID:   5,
+			value:    int64(1234567890123),
+			expected: []byte{0xCB, 0x04, 0xFB, 0x71, 0x1F, 0x01, 0x00, 0x00}, // little-endian
+		},
+		{
+			name:     "USINT 类型写入",
+			attrID:   6,
+			value:    uint8(255),
+			expected: []byte{0xFF},
+		},
+		{
+			name:     "UINT 类型写入",
+			attrID:   7,
+			value:    uint16(65535),
+			expected: []byte{0xFF, 0xFF}, // little-endian
+		},
+		{
+			name:     "UDINT 类型写入",
+			attrID:   8,
+			value:    uint32(4294967295),
+			expected: []byte{0xFF, 0xFF, 0xFF, 0xFF}, // little-endian
+		},
+		{
+			name:     "ULINT 类型写入",
+			attrID:   9,
+			value:    uint64(18446744073709551615),
+			expected: []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, // little-endian
+		},
+		{
+			name:     "REAL 类型写入",
+			attrID:   10,
+			value:    float32(3.14),
+			expected: []byte{0xC3, 0xF5, 0x48, 0x40}, // IEEE 754 little-endian
+		},
+		{
+			name:     "LREAL 类型写入",
+			attrID:   11,
+			value:    float64(3.1415926535),
+			expected: []byte{0x44, 0x17, 0x41, 0x54, 0xFB, 0x21, 0x09, 0x40}, // IEEE 754 little-endian
+		},
+		{
+			name:     "STRING 类型写入",
+			attrID:   12,
+			value:    "Test",
+			expected: []byte{0x04, 0x00, 0x00, 0x00, 'T', 'e', 's', 't'}, // 4字节长度 + 内容
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var actual []byte
+			var err error
+
+			tag := &ethernet_ip.Tag{
+				Lock: new(sync.Mutex),
+			}
+
+			switch v := tc.value.(type) {
+			case bool:
+				tag.SetBool(v)
+				actual = tag.GetWriteValue()
+			case int8:
+				tag.SetInt8(v)
+				actual = tag.GetWriteValue()
+			case int16:
+				tag.SetInt16(v)
+				actual = tag.GetWriteValue()
+			case int32:
+				tag.SetInt32(v)
+				actual = tag.GetWriteValue()
+			case int64:
+				tag.SetInt64(v)
+				actual = tag.GetWriteValue()
+			case uint8:
+				tag.SetUInt8(v)
+				actual = tag.GetWriteValue()
+			case uint16:
+				tag.SetUInt16(v)
+				actual = tag.GetWriteValue()
+			case uint32:
+				tag.SetUInt32(v)
+				actual = tag.GetWriteValue()
+			case uint64:
+				tag.SetUInt64(v)
+				actual = tag.GetWriteValue()
+			case float32:
+				tag.SetFloat32(v)
+				actual = tag.GetWriteValue()
+			case float64:
+				tag.SetFloat64(v)
+				actual = tag.GetWriteValue()
+			case string:
+				tag.SetString(v)
+				actual = tag.GetWriteValue()
+			default:
+				t.Fatalf("不支持的数据类型: %T", tc.value)
+			}
+
+			if err != nil {
+				t.Errorf("数据编码失败: %v", err)
+				return
+			}
+
+			if len(actual) != len(tc.expected) {
+				t.Errorf("数据长度不匹配: 预期=%d, 实际=%d", len(tc.expected), len(actual))
+				return
+			}
+
+			for i := range tc.expected {
+				if actual[i] != tc.expected[i] {
+					t.Errorf("数据内容不匹配: 索引=%d, 预期=0x%02X, 实际=0x%02X", i, tc.expected[i], actual[i])
+				}
+			}
+		})
+	}
+}
+
+// TestClass2AttributeWriteIntegration 测试 Class 2 属性写入（集成测试）
+func TestClass2AttributeWriteIntegration(t *testing.T) {
+	conn, err := ethernet_ip.NewTCP("127.0.0.1", nil)
+	if err != nil {
+		t.Skipf("跳过测试: 无法创建连接: %v", err)
+		return
+	}
+	err = conn.Connect()
+	if err != nil {
+		t.Skipf("跳过测试: 无法连接到模拟器: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	testCases := []struct {
+		name   string
+		attrID int
+		value  []byte
+	}{
+		{"写入 BOOL", 1, []byte{0x01}},
+		{"写入 SINT", 2, []byte{0x7F}},
+		{"写入 INT", 3, []byte{0xFF, 0x7F}},
+		{"写入 DINT", 4, []byte{0x39, 0x30, 0x00, 0x00}},
+		{"写入 USINT", 6, []byte{0xFF}},
+		{"写入 UINT", 7, []byte{0xFF, 0xFF}},
+		{"写入 UDINT", 8, []byte{0xFF, 0xFF, 0xFF, 0xFF}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := conn.WriteClass2Attribute(tc.attrID, tc.value)
+			if err != nil {
+				t.Errorf("写入失败: %v", err)
+			}
+		})
+	}
+}
+
+// TestClass2AttributeReadIntegration 测试 Class 2 属性读取（集成测试）
+func TestClass2AttributeReadIntegration(t *testing.T) {
+	conn, err := ethernet_ip.NewTCP("127.0.0.1", nil)
+	if err != nil {
+		t.Skipf("跳过测试: 无法创建连接: %v", err)
+		return
+	}
+	err = conn.Connect()
+	if err != nil {
+		t.Skipf("跳过测试: 无法连接到模拟器: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	testCases := []struct {
+		name   string
+		attrID int
+		minLen int
+	}{
+		{"读取 BOOL", 1, 1},
+		{"读取 INT", 3, 2},
+		{"读取 DINT", 4, 4},
+		{"读取 REAL", 10, 4},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := conn.ReadClass2Attribute(tc.attrID)
+			if err != nil {
+				t.Errorf("读取失败: %v", err)
+				return
+			}
+			if len(data) < tc.minLen {
+				t.Errorf("返回数据长度不足: 预期>= %d, 实际=%d", tc.minLen, len(data))
+			}
+		})
+	}
+}
+
+// TestClass2AttributeWriteString 测试 STRING 类型的 Class 2 属性写入
+func TestClass2AttributeWriteString(t *testing.T) {
+	testCases := []struct {
+		name     string
+		value    string
+		expected []byte
+	}{
+		{
+			name:     "空字符串",
+			value:    "",
+			expected: []byte{0x00, 0x00, 0x00, 0x00},
+		},
+		{
+			name:     "短字符串",
+			value:    "Hi",
+			expected: []byte{0x02, 0x00, 0x00, 0x00, 'H', 'i'},
+		},
+		{
+			name:     "中字符串",
+			value:    "Hello",
+			expected: []byte{0x05, 0x00, 0x00, 0x00, 'H', 'e', 'l', 'l', 'o'},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tag := &ethernet_ip.Tag{
+				Lock: new(sync.Mutex),
+			}
+			tag.SetString(tc.value)
+			actual := tag.GetWriteValue()
+
+			if len(actual) != len(tc.expected) {
+				t.Errorf("字符串长度不匹配: 预期=%d, 实际=%d", len(tc.expected), len(actual))
+				return
+			}
+
+			for i := range tc.expected {
+				if actual[i] != tc.expected[i] {
+					t.Errorf("字符串内容不匹配: 索引=%d, 预期=0x%02X, 实际=0x%02X", i, tc.expected[i], actual[i])
+				}
 			}
 		})
 	}
