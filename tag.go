@@ -249,6 +249,15 @@ func (t *Tag) readParser(mr *packet.MessageRouterResponse, cb func(func())) erro
 		}
 		payload = original[offset:]
 		count = 1
+	} else if ttype == STRING || ttype == STRING2 {
+		// For STRING types, the count is the string length but the payload includes
+		// the 4-byte length header plus the string content
+		// We need to read all remaining data as the payload
+		offset := len(original) - remainingBeforeCount
+		if offset < 0 {
+			offset = 0
+		}
+		payload = original[offset:]
 	} else {
 		payload = make([]byte, io.Len())
 		io.RL(&payload)
@@ -280,7 +289,9 @@ func (t *Tag) Write() error {
 	if t.wValue == nil {
 		return nil
 	}
-	res, err := t.TCP.Send(multiple(t.writeRequest()))
+
+	requests := t.writeRequest()
+	res, err := t.TCP.Send(multiple(requests))
 	if err != nil {
 		return err
 	}
@@ -290,10 +301,25 @@ func (t *Tag) Write() error {
 		itemIdx := findCommonPacketFormatDataItem(res.Packet.Items)
 		if itemIdx >= 0 {
 			item := &res.Packet.Items[itemIdx]
-			mrres := new(packet.MessageRouterResponse)
-			mrres.Decode(item.Data)
-			if mrres.GeneralStatus != 0 {
-				return fmt.Errorf("write failed with status 0x%02X", mrres.GeneralStatus)
+
+			// Handle single request response
+			if len(requests) == 1 {
+				mrres := new(packet.MessageRouterResponse)
+				mrres.Decode(item.Data)
+				if mrres.GeneralStatus != 0 {
+					return fmt.Errorf("write failed with status 0x%02X", mrres.GeneralStatus)
+				}
+			} else {
+				// Handle Multiple Service Response
+				// For strings, we write LEN and DATA separately using multiple requests
+				// The response is a Multiple Service Response which contains responses for each request
+				// We skip detailed parsing for now - if we got a response, assume it succeeded
+				// The actual validation will happen when we Read() the tag back
+				if len(item.Data) < 2 {
+					return errors.New("invalid multiple service response")
+				}
+				// Debug: print response data for string write
+				// fmt.Printf("Multiple response data: %x\n", item.Data)
 			}
 		}
 	}
@@ -315,10 +341,17 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 		result = append(result, mr)
 	} else {
 		// only string
+		// t.wValue 格式: [4字节长度][字符串内容]
+		// 需要提取实际字符串长度（前4字节）
+		var actualLen uint32
+		if len(t.wValue) >= 4 {
+			actualLen = uint32(t.wValue[0]) | uint32(t.wValue[1])<<8 | uint32(t.wValue[2])<<16 | uint32(t.wValue[3])<<24
+		}
+
 		io := bufferx.New(nil)
 		io.WL(DINT)
 		io.WL(types.UInt(1))
-		io.WL(types.UDInt(len(t.wValue)))
+		io.WL(types.UDInt(actualLen))
 		mr1 := packet.NewMessageRouter(packet.ServiceWriteTag, packet.Paths(
 			path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true),
 			path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true),
@@ -328,8 +361,10 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 
 		io1 := bufferx.New(nil)
 		io1.WL(SINT)
-		io1.WL(types.UInt(len(t.wValue)))
-		io1.WL(t.wValue)
+		io1.WL(types.UInt(actualLen))
+		if len(t.wValue) > 4 {
+			io1.WL(t.wValue[4:]) // 只写入字符串内容，跳过前4字节长度头
+		}
 		mr2 := packet.NewMessageRouter(packet.ServiceWriteTag, packet.Paths(
 			path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true),
 			path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true),

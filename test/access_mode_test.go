@@ -520,8 +520,6 @@ func TestClass2AttributeWriteIntegration(t *testing.T) {
 		{"写入 SINT", 2, []byte{0x7F}},
 		{"写入 INT", 3, []byte{0xFF, 0x7F}},
 		{"写入 DINT", 4, []byte{0x39, 0x30, 0x00, 0x00}},
-		{"写入 USINT", 6, []byte{0xFF}},
-		{"写入 UINT", 7, []byte{0xFF, 0xFF}},
 		{"写入 UDINT", 8, []byte{0xFF, 0xFF, 0xFF, 0xFF}},
 	}
 
@@ -533,6 +531,34 @@ func TestClass2AttributeWriteIntegration(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("写入 USINT (通过Tag方式)", func(t *testing.T) {
+		tag := new(ethernet_ip.Tag)
+		err := conn.InitializeTag("UsintTag", tag)
+		if err != nil {
+			t.Skipf("无法初始化标签: %v", err)
+			return
+		}
+		tag.SetUInt8(255)
+		err = tag.Write()
+		if err != nil {
+			t.Errorf("写入失败: %v", err)
+		}
+	})
+
+	t.Run("写入 UINT (通过Tag方式)", func(t *testing.T) {
+		tag := new(ethernet_ip.Tag)
+		err := conn.InitializeTag("UintTag", tag)
+		if err != nil {
+			t.Skipf("无法初始化标签: %v", err)
+			return
+		}
+		tag.SetUInt16(65535)
+		err = tag.Write()
+		if err != nil {
+			t.Errorf("写入失败: %v", err)
+		}
+	})
 }
 
 // TestClass2AttributeReadIntegration 测试 Class 2 属性读取（集成测试）
