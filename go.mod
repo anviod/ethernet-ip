@@ -1,3 +1,3 @@
 module github.com/anviod/ethernet-ip
 
-go 1.22
+go 1.25
