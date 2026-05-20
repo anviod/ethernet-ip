@@ -366,14 +366,7 @@ func (t *EIPTCP) WriteClass2Attribute(attrID int, value []byte) error {
 		return errors.New("空响应")
 	}
 
-	itemIdx := -1
-	for i, item := range response.Packet.Items {
-		if item.TypeID == packet.ItemIDUnconnectedMessage {
-			itemIdx = i
-			break
-		}
-	}
-
+	itemIdx := findCommonPacketFormatDataItem(response.Packet.Items)
 	if itemIdx < 0 {
 		return errors.New("未找到响应数据")
 	}
