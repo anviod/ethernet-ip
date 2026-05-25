@@ -3,8 +3,10 @@ package ethernet_ip
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/anviod/ethernet-ip/bufferx"
 	"github.com/anviod/ethernet-ip/command"
@@ -29,6 +31,9 @@ type EIPTCP struct {
 
 	reconnectAttempts int
 	maxReconnect      int
+	minReconnectDelay time.Duration
+
+	monitor *ConnectionMonitor
 }
 
 // NewTCP creates a new EIPTCP instance and resolves the target address.
@@ -45,11 +50,13 @@ func NewTCP(address string, config *Config) (*EIPTCP, error) {
 	}
 
 	return &EIPTCP{
-		requestLock:  new(sync.Mutex),
-		config:       config,
-		tcpAddr:      tcpAddress,
-		readBuf:      make([]byte, 1024*64),
-		maxReconnect: 3,
+		requestLock:       new(sync.Mutex),
+		config:            config,
+		tcpAddr:           tcpAddress,
+		readBuf:           make([]byte, 1024*64),
+		maxReconnect:      3,
+		minReconnectDelay: time.Second * 1,
+		monitor:           newConnectionMonitor(),
 	}, nil
 }
 
@@ -68,8 +75,11 @@ func (t *EIPTCP) reconnect() error {
 
 func (t *EIPTCP) reconnectLocked() error {
 	if t.reconnectAttempts >= t.maxReconnect {
+		t.monitor.setState(StateDisconnected, errors.New("max reconnect attempts exceeded"))
 		return errors.New("max reconnect attempts exceeded")
 	}
+
+	t.monitor.setState(StateReconnecting, nil)
 
 	if t.tcpConn != nil {
 		t.tcpConn.Close()
@@ -80,28 +90,75 @@ func (t *EIPTCP) reconnectLocked() error {
 	t.reset()
 	t.reconnectAttempts = attempts
 
-	tcpConnection, err := net.DialTCP("tcp", nil, t.tcpAddr)
+	if t.reconnectAttempts > 0 {
+		delay := t.ExponentialBackoff(t.reconnectAttempts)
+		time.Sleep(delay)
+	}
+
+	dialer := &net.Dialer{
+		Timeout: t.config.ConnectTimeout,
+	}
+
+	tcpConnection, err := dialer.Dial("tcp", t.tcpAddr.String())
 	if err != nil {
 		t.reconnectAttempts++
 		return err
 	}
 
-	err = tcpConnection.SetKeepAlive(true)
-	if err != nil {
-		t.reconnectAttempts++
+	tcpConn, ok := tcpConnection.(*net.TCPConn)
+	if !ok {
 		tcpConnection.Close()
+		t.reconnectAttempts++
+		return errors.New("failed to cast to TCPConn")
+	}
+
+	err = tcpConn.SetKeepAlive(true)
+	if err != nil {
+		t.reconnectAttempts++
+		tcpConn.Close()
 		return err
 	}
 
-	t.tcpConn = tcpConnection
+	err = tcpConn.SetReadDeadline(time.Now().Add(t.config.ReadTimeout))
+	if err != nil {
+		t.reconnectAttempts++
+		tcpConn.Close()
+		return err
+	}
+
+	err = tcpConn.SetWriteDeadline(time.Now().Add(t.config.WriteTimeout))
+	if err != nil {
+		t.reconnectAttempts++
+		tcpConn.Close()
+		return err
+	}
+
+	t.tcpConn = tcpConn
 
 	if err := t.registerSessionLocked(); err != nil {
 		t.reconnectAttempts++
 		return err
 	}
 
+	t.monitor.stats.recordReconnect()
+	t.monitor.setState(StateConnected, nil)
 	t.reconnectAttempts = 0
 	return nil
+}
+
+func (t *EIPTCP) ExponentialBackoff(attempt int) time.Duration {
+	if attempt <= 0 {
+		if attempt == 0 {
+			return t.minReconnectDelay
+		}
+		return time.Duration(0)
+	}
+	delay := t.minReconnectDelay * time.Duration(math.Pow(2, float64(attempt)))
+	maxDelay := time.Second * 30
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+	return delay
 }
 
 // IsConnected returns true if the TCP connection is established and session is registered.
@@ -111,36 +168,83 @@ func (t *EIPTCP) IsConnected() bool {
 	return t.tcpConn != nil && t.established
 }
 
+// GetReconnectAttempts returns the number of reconnect attempts made.
+func (t *EIPTCP) GetReconnectAttempts() int {
+	t.requestLock.Lock()
+	defer t.requestLock.Unlock()
+	return t.reconnectAttempts
+}
+
 // Connect establishes a TCP connection to the device and registers a session.
 // It must be called before any read/write operations.
 func (t *EIPTCP) Connect() error {
 	t.reset()
+	t.monitor.setState(StateConnecting, nil)
 
-	tcpConnection, err := net.DialTCP("tcp", nil, t.tcpAddr)
+	dialer := &net.Dialer{
+		Timeout: t.config.ConnectTimeout,
+	}
+
+	tcpConnection, err := dialer.Dial("tcp", t.tcpAddr.String())
 	if err != nil {
+		t.monitor.setState(StateDisconnected, err)
 		return err
 	}
 
-	err = tcpConnection.SetKeepAlive(true)
+	tcpConn, ok := tcpConnection.(*net.TCPConn)
+	if !ok {
+		tcpConnection.Close()
+		t.monitor.setState(StateDisconnected, errors.New("failed to cast to TCPConn"))
+		return errors.New("failed to cast to TCPConn")
+	}
+
+	err = tcpConn.SetKeepAlive(true)
 	if err != nil {
+		tcpConn.Close()
+		t.monitor.setState(StateDisconnected, err)
 		return err
 	}
 
-	t.tcpConn = tcpConnection
+	err = tcpConn.SetReadDeadline(time.Now().Add(t.config.ReadTimeout))
+	if err != nil {
+		tcpConn.Close()
+		t.monitor.setState(StateDisconnected, err)
+		return err
+	}
+
+	err = tcpConn.SetWriteDeadline(time.Now().Add(t.config.WriteTimeout))
+	if err != nil {
+		tcpConn.Close()
+		t.monitor.setState(StateDisconnected, err)
+		return err
+	}
+
+	t.tcpConn = tcpConn
 
 	if err := t.RegisterSession(); err != nil {
+		t.tcpConn.Close()
+		t.tcpConn = nil
+		t.monitor.setState(StateDisconnected, err)
 		return err
 	}
 
+	t.monitor.stats.recordConnect()
+	t.monitor.setState(StateConnected, nil)
 	return nil
 }
 
 func (t *EIPTCP) write(data []byte) error {
+	if err := t.tcpConn.SetWriteDeadline(time.Now().Add(t.config.WriteTimeout)); err != nil {
+		return err
+	}
 	_, err := t.tcpConn.Write(data)
 	return err
 }
 
 func (t *EIPTCP) read() (*packet.Packet, error) {
+	if err := t.tcpConn.SetReadDeadline(time.Now().Add(t.config.ReadTimeout)); err != nil {
+		return nil, err
+	}
 	if t.readBuf == nil {
 		t.readBuf = make([]byte, 1024*64)
 	}
@@ -236,6 +340,33 @@ func (t *EIPTCP) Close() error {
 
 	err := t.tcpConn.Close()
 	t.tcpConn = nil
+	t.monitor.stats.recordDisconnect()
+	t.monitor.setState(StateDisconnected, nil)
 	t.reset()
 	return err
+}
+
+// AddConnectionListener adds a listener for connection state changes
+func (t *EIPTCP) AddConnectionListener(listener ConnectionEventListener) {
+	t.monitor.addListener(listener)
+}
+
+// RemoveConnectionListener removes a connection state listener
+func (t *EIPTCP) RemoveConnectionListener(listener ConnectionEventListener) {
+	t.monitor.removeListener(listener)
+}
+
+// GetConnectionState returns the current connection state
+func (t *EIPTCP) GetConnectionState() ConnectionState {
+	return t.monitor.GetState()
+}
+
+// GetConnectionStats returns the connection statistics
+func (t *EIPTCP) GetConnectionStats() ConnectionStats {
+	return t.monitor.GetStats()
+}
+
+// ResetConnectionStats resets all connection statistics
+func (t *EIPTCP) ResetConnectionStats() {
+	t.monitor.stats.Reset()
 }

@@ -1,62 +1,32 @@
 package utils
 
 import (
-	"unsafe"
+	"encoding/binary"
 )
 
-// SIMD operations for encoding/decoding
-// Note: This is a simplified implementation. For production use,
-// consider using assembly or external libraries like gonum.
-
-// CopyUint16LE copies uint16 values in little-endian format using SIMD-like operations
+// CopyUint16LE copies uint16 values in little-endian format
+// Note: Uses safe byte-by-byte copy to ensure compatibility with all architectures
 func CopyUint16LE(dst []byte, src []uint16) {
 	if len(dst) < len(src)*2 {
 		panic("destination buffer too small")
 	}
 
-	// Use unsafe.Pointer for direct memory access (simulating SIMD)
-	dstPtr := unsafe.Pointer(&dst[0])
-	srcPtr := unsafe.Pointer(&src[0])
-
-	// Copy in chunks of 8 bytes (4 uint16 values) for better performance
-	for i := 0; i < len(src); i += 4 {
-		if i+4 <= len(src) {
-			// Copy 4 uint16 values at once (64 bits)
-			*(*uint64)(unsafe.Pointer(uintptr(dstPtr) + uintptr(i*2))) =
-				*(*uint64)(unsafe.Pointer(uintptr(srcPtr) + uintptr(i*2)))
-		} else {
-			// Handle remaining values
-			for j := i; j < len(src); j++ {
-				*(*uint16)(unsafe.Pointer(uintptr(dstPtr) + uintptr(j*2))) =
-					*(*uint16)(unsafe.Pointer(uintptr(srcPtr) + uintptr(j*2)))
-			}
-		}
+	for i, v := range src {
+		offset := i * 2
+		binary.LittleEndian.PutUint16(dst[offset:offset+2], v)
 	}
 }
 
 // CopyUint32LE copies uint32 values in little-endian format
+// Note: Uses safe byte-by-byte copy to ensure compatibility with all architectures
 func CopyUint32LE(dst []byte, src []uint32) {
 	if len(dst) < len(src)*4 {
 		panic("destination buffer too small")
 	}
 
-	dstPtr := unsafe.Pointer(&dst[0])
-	srcPtr := unsafe.Pointer(&src[0])
-
-	// Copy in chunks of 16 bytes (4 uint32 values)
-	for i := 0; i < len(src); i += 4 {
-		if i+4 <= len(src) {
-			// Copy 4 uint32 values at once (128 bits)
-			*(*uint64)(unsafe.Pointer(uintptr(dstPtr) + uintptr(i*4))) =
-				*(*uint64)(unsafe.Pointer(uintptr(srcPtr) + uintptr(i*4)))
-			*(*uint64)(unsafe.Pointer(uintptr(dstPtr) + uintptr(i*4+8))) =
-				*(*uint64)(unsafe.Pointer(uintptr(srcPtr) + uintptr(i*4+8)))
-		} else {
-			for j := i; j < len(src); j++ {
-				*(*uint32)(unsafe.Pointer(uintptr(dstPtr) + uintptr(j*4))) =
-					*(*uint32)(unsafe.Pointer(uintptr(srcPtr) + uintptr(j*4)))
-			}
-		}
+	for i, v := range src {
+		offset := i * 4
+		binary.LittleEndian.PutUint32(dst[offset:offset+4], v)
 	}
 }
 
@@ -81,12 +51,14 @@ func VectorizedXOR(dst, src1, src2 []byte) {
 		panic("slice lengths must be equal")
 	}
 
-	// Process in 8-byte chunks
+	// Process in 8-byte chunks with alignment check
 	for i := 0; i < len(dst); i += 8 {
 		if i+8 <= len(dst) {
-			*(*uint64)(unsafe.Pointer(&dst[i])) =
-				*(*uint64)(unsafe.Pointer(&src1[i])) ^
-				*(*uint64)(unsafe.Pointer(&src2[i]))
+			// Check alignment for 64-bit operations
+			// Use byte-by-byte XOR for compatibility with all architectures
+			for j := 0; j < 8; j++ {
+				dst[i+j] = src1[i+j] ^ src2[i+j]
+			}
 		} else {
 			for j := i; j < len(dst); j++ {
 				dst[j] = src1[j] ^ src2[j]

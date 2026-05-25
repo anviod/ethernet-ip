@@ -296,30 +296,14 @@ func (t *Tag) Write() error {
 		return err
 	}
 
-	// Check if the response indicates success
 	if res != nil && res.Packet != nil {
 		itemIdx := findCommonPacketFormatDataItem(res.Packet.Items)
 		if itemIdx >= 0 {
 			item := &res.Packet.Items[itemIdx]
-
-			// Handle single request response
-			if len(requests) == 1 {
-				mrres := new(packet.MessageRouterResponse)
-				mrres.Decode(item.Data)
-				if mrres.GeneralStatus != 0 {
-					return fmt.Errorf("write failed with status 0x%02X", mrres.GeneralStatus)
-				}
-			} else {
-				// Handle Multiple Service Response
-				// For strings, we write LEN and DATA separately using multiple requests
-				// The response is a Multiple Service Response which contains responses for each request
-				// We skip detailed parsing for now - if we got a response, assume it succeeded
-				// The actual validation will happen when we Read() the tag back
-				if len(item.Data) < 2 {
-					return errors.New("invalid multiple service response")
-				}
-				// Debug: print response data for string write
-				// fmt.Printf("Multiple response data: %x\n", item.Data)
+			mrres := new(packet.MessageRouterResponse)
+			mrres.Decode(item.Data)
+			if mrres.GeneralStatus != 0 {
+				return fmt.Errorf("write failed with status 0x%02X", mrres.GeneralStatus)
 			}
 		}
 	}
@@ -331,6 +315,7 @@ func (t *Tag) Write() error {
 
 func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 	var result []*packet.MessageRouterRequest
+
 	if 0x8000&t.Type == 0 {
 		io := bufferx.New(nil)
 		io.WL(t.Type)
@@ -340,37 +325,13 @@ func (t *Tag) writeRequest() []*packet.MessageRouterRequest {
 		mr := packet.NewMessageRouter(packet.ServiceWriteTag, t.requestPath(), io.Bytes())
 		result = append(result, mr)
 	} else {
-		// only string
-		// t.wValue 格式: [4字节长度][字符串内容]
-		// 需要提取实际字符串长度（前4字节）
-		var actualLen uint32
-		if len(t.wValue) >= 4 {
-			actualLen = uint32(t.wValue[0]) | uint32(t.wValue[1])<<8 | uint32(t.wValue[2])<<16 | uint32(t.wValue[3])<<24
-		}
-
 		io := bufferx.New(nil)
-		io.WL(DINT)
+		io.WL(t.Type)
 		io.WL(types.UInt(1))
-		io.WL(types.UDInt(actualLen))
-		mr1 := packet.NewMessageRouter(packet.ServiceWriteTag, packet.Paths(
-			path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true),
-			path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true),
-			path.DataBuild(path.DataTypeANSI, []byte("LEN"), true),
-		), io.Bytes())
-		result = append(result, mr1)
+		io.WL(t.wValue)
 
-		io1 := bufferx.New(nil)
-		io1.WL(SINT)
-		io1.WL(types.UInt(actualLen))
-		if len(t.wValue) > 4 {
-			io1.WL(t.wValue[4:]) // 只写入字符串内容，跳过前4字节长度头
-		}
-		mr2 := packet.NewMessageRouter(packet.ServiceWriteTag, packet.Paths(
-			path.LogicalBuild(path.LogicalTypeClassID, 0x6B, true),
-			path.LogicalBuild(path.LogicalTypeInstanceID, t.instanceID, true),
-			path.DataBuild(path.DataTypeANSI, []byte("DATA"), true),
-		), io1.Bytes())
-		result = append(result, mr2)
+		mr := packet.NewMessageRouter(packet.ServiceWriteTag, t.requestPath(), io.Bytes())
+		result = append(result, mr)
 	}
 
 	return result
@@ -811,16 +772,10 @@ func (t *EIPTCP) allTags(tagMap map[string]*Tag, instanceID types.UDInt) (map[st
 }
 
 type TagGroup struct {
-	tags map[types.UDInt]*Tag
-	Tcp  *EIPTCP
-	Lock *sync.Mutex
-}
-
-func NewTagGroup(lock *sync.Mutex) *TagGroup {
-	if lock == nil {
-		lock = new(sync.Mutex)
-	}
-	return &TagGroup{tags: make(map[types.UDInt]*Tag), Lock: lock}
+	tags        map[types.UDInt]*Tag
+	Tcp         *EIPTCP
+	Lock        *sync.Mutex
+	AtomicWrite bool
 }
 
 func (tg *TagGroup) Add(tag *Tag) {
@@ -925,10 +880,57 @@ func (tg *TagGroup) Write() error {
 		return nil
 	}
 
-	_, err := tg.Tcp.Send(multiple(mrs))
+	res, err := tg.Tcp.Send(multiple(mrs))
 	if err != nil {
+		if tg.AtomicWrite {
+			for _, id := range list {
+				tg.tags[id].changed = true
+			}
+		}
 		return err
 	}
+
+	if tg.AtomicWrite && res != nil && res.Packet != nil {
+		itemIdx := findCommonPacketFormatDataItem(res.Packet.Items)
+		if itemIdx >= 0 {
+			rmr := &packet.MessageRouterResponse{}
+			rmr.Decode(res.Packet.Items[itemIdx].Data)
+
+			if rmr.GeneralStatus != 0 {
+				for _, id := range list {
+					tg.tags[id].changed = true
+				}
+				return fmt.Errorf("atomic write failed with status 0x%02X", rmr.GeneralStatus)
+			}
+
+			io1 := bufferx.New(rmr.ResponseData)
+			count := types.UInt(0)
+			io1.RL(&count)
+
+			var offsets []types.UInt
+			for i := types.UInt(0); i < count; i++ {
+				one := types.UInt(0)
+				io1.RL(&one)
+				offsets = append(offsets, one)
+			}
+
+			for i2 := range offsets {
+				mr := &packet.MessageRouterResponse{}
+				if (i2 + 1) != len(offsets) {
+					mr.Decode(rmr.ResponseData[offsets[i2]:offsets[i2+1]])
+				} else {
+					mr.Decode(rmr.ResponseData[offsets[i2]:])
+				}
+				if mr.GeneralStatus != 0 {
+					for _, id := range list {
+						tg.tags[id].changed = true
+					}
+					return fmt.Errorf("atomic write failed at position %d with status 0x%02X", i2, mr.GeneralStatus)
+				}
+			}
+		}
+	}
+
 	for i := range tg.tags {
 		if tg.tags[i].wValue != nil {
 			tg.tags[i].value = append([]byte(nil), tg.tags[i].wValue...)
@@ -937,6 +939,13 @@ func (tg *TagGroup) Write() error {
 	}
 
 	return nil
+}
+
+func NewTagGroup(lock *sync.Mutex) *TagGroup {
+	if lock == nil {
+		lock = new(sync.Mutex)
+	}
+	return &TagGroup{tags: make(map[types.UDInt]*Tag), Lock: lock, AtomicWrite: false}
 }
 
 func (t *EIPTCP) InitializeTag(name string, tag *Tag) error {

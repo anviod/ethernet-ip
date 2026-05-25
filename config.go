@@ -1,6 +1,10 @@
 package ethernet_ip
 
-import "github.com/anviod/ethernet-ip/types"
+import (
+	"time"
+
+	"github.com/anviod/ethernet-ip/types"
+)
 
 // Config holds configuration parameters for EtherNet/IP connections.
 type Config struct {
@@ -14,6 +18,14 @@ type Config struct {
 	TimeTick types.USInt
 	// TimeTickOut is the connection timeout in TimeTick units
 	TimeTickOut types.USInt
+	// ConnectTimeout is the timeout for TCP connection establishment
+	ConnectTimeout time.Duration
+	// ReadTimeout is the timeout for read operations
+	ReadTimeout time.Duration
+	// WriteTimeout is the timeout for write operations
+	WriteTimeout time.Duration
+	// OperationTimeout is the timeout for general EIP operations
+	OperationTimeout time.Duration
 }
 
 // DefaultConfig returns a Config with default values suitable for most PLCs.
@@ -24,5 +36,9 @@ func DefaultConfig() *Config {
 	cfg.Slot = 0
 	cfg.TimeTick = types.USInt(3)
 	cfg.TimeTickOut = types.USInt(250)
+	cfg.ConnectTimeout = time.Second * 30
+	cfg.ReadTimeout = time.Second * 10
+	cfg.WriteTimeout = time.Second * 10
+	cfg.OperationTimeout = time.Second * 15
 	return cfg
 }

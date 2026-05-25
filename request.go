@@ -344,6 +344,37 @@ func (t *EIPTCP) ReadClass2Attribute(attrID int) ([]byte, error) {
 	return rmr.ResponseData, nil
 }
 
+// ForwardClose closes a forward open connection established by ForwardOpen.
+// This releases resources on both the client and the PLC device.
+func (t *EIPTCP) ForwardClose() error {
+	if t.connID == 0 {
+		return errors.New("no forward open connection to close")
+	}
+
+	io := bufferx.NewWithCapacity(16)
+	io.WL(t.connID)
+
+	portPath := packet.Paths(
+		path.PortBuild([]byte{t.config.Slot}, 1, true),
+		path.LogicalBuild(path.LogicalTypeClassID, 0x02, true),
+		path.LogicalBuild(path.LogicalTypeInstanceID, 0x01, true),
+	)
+	io.WL(utils.Len(portPath))
+	io.WL(portPath)
+
+	mr := packet.NewMessageRouter(packet.ServiceForwardClose, packet.Paths(
+		path.LogicalBuild(path.LogicalTypeClassID, 0x06, true),
+		path.LogicalBuild(path.LogicalTypeInstanceID, 0x01, true),
+	), io.Bytes())
+
+	_, err := t.SendRRData(packet.NewUCMM(mr), 10)
+
+	t.connID = 0
+	t.seqNum = 0
+
+	return err
+}
+
 // WriteClass2Attribute 使用 Set Attribute Single 服务写入 Class 2 对象的属性
 // attrID: 属性ID (1-12)，对应 cpppo 服务器的标签
 // value: 要写入的值（字节数组格式）

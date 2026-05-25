@@ -20,9 +20,14 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 - [访问模式](#访问模式)
   - [标准 CIP 模式](#标准-cip-模式)
   - [Logix 模式](#logix-模式)
+- [配置选项](#配置选项)
+- [诊断监控](#诊断监控)
+- [UDP 设备发现](#udp-设备发现)
+- [事务性支持](#事务性支持)
 - [cpppo 兼容性](#cpppo-兼容性)
 - [API 参考](#api-参考)
 - [示例代码](#示例代码)
+- [测试](#测试)
 - [性能优化](#性能优化)
 - [版本更新](#版本更新)
 
@@ -32,16 +37,24 @@ Go 语言实现的 Ethernet/IP 协议库，支持与 Allen-Bradley PLC 等设备
 
 - ✅ TCP 连接管理（会话注册/注销）
 - ✅ UDP 连接支持
+- ✅ UDP 设备发现（Broadcast Discovery）
 - ✅ Tag 读写操作
 - ✅ 批量 Tag 操作（TagGroup）
 - ✅ 连接池支持（EIPTCPPool）
 - ✅ UDT（用户定义类型）支持
 - ✅ 符号寻址（Symbolic Addressing）
-- ✅ 连接前向开放（Forward Open）
+- ✅ 连接前向开放（Forward Open）/关闭（Forward Close）
 - ✅ 消息路由器（Message Router）
 - ✅ 缓冲区池化优化
 - ✅ 线程安全设计
 - ✅ 兼容（Logix Class 2 对象标签访问）
+- ✅ 连接状态检查（IsConnected）
+- ✅ 自动重连机制（指数退避，最多 3 次重试）
+- ✅ 批量数据包操作（BatchRead/BatchWrite）
+- ✅ 超时配置（连接超时、读写超时、操作超时）
+- ✅ 事务性支持（TagGroup 原子写入）
+- ✅ 诊断监控（连接状态、统计指标、事件监听）
+- ✅ STRING 写入优化（单次请求完成）
 
 ---
 ## 快速开始
@@ -174,30 +187,63 @@ if err := group.Write(); err != nil {
 ```
 ethernet-ip/
 ├── bufferx/              # 字节缓冲区操作
-│   └── bufferx.go       # 支持小端/大端读写、缓冲区池化
+│   ├── bufferx.go        # 支持小端/大端读写、缓冲区池化
+│   ├── bufferx_test.go   # 单元测试
+│   └── bufferx_benchmark_test.go # 性能测试
 ├── command/              # EIP 命令定义
-│   └── command.go       # 命令常量（注册会话、发送数据等）
+│   ├── command.go        # 命令常量（注册会话、发送数据等）
+│   └── command_test.go   # 单元测试
 ├── messages/             # 消息处理
 │   ├── packet/          # 数据包编解码
-│   ├── registerSession/ # 会话注册
+│   │   ├── packet.go    # 数据包结构
+│   │   ├── commonPacketFormat.go # CPF 格式
+│   │   ├── messageRouter.go      # 消息路由器
+│   │   ├── services.go  # 服务定义
+│   │   ├── cmm.go       # CIP 消息管理
+│   │   ├── ucmm.go      # 非连接消息管理
+│   │   ├── data.go      # 数据项处理
+│   │   ├── utils.go     # 工具函数
+│   │   └── packet_test.go # 单元测试
+│   ├── registerSession/  # 会话注册
 │   ├── unRegisterSession/ # 会话注销
-│   ├── listIdentity/    # 设备识别信息
-│   ├── listInterface/   # 接口列表
-│   ├── listServices/    # 服务列表
-│   ├── sendRRData/      # 发送路由数据
-│   └── sendUnitData/    # 发送单元数据
+│   ├── listIdentity/     # 设备识别信息
+│   ├── listInterface/    # 接口列表
+│   ├── listServices/     # 服务列表
+│   ├── sendRRData/       # 发送路由数据
+│   ├── sendUnitData/     # 发送单元数据
+│   └── nop/              # NOP 命令（空操作）
 ├── path/                # CIP 路径构建
-│   └── path.go         # 逻辑路径、端口路径、数据路径
+│   ├── path.go          # 逻辑路径、端口路径、数据路径
+│   └── path_test.go     # 单元测试
 ├── types/               # 类型定义
-│   └── types.go        # 所有数据类型定义
+│   └── types.go         # 所有数据类型定义
 ├── utils/               # 工具函数
-├── config.go            # 配置结构
+│   ├── len.go           # 长度计算
+│   ├── mmap.go          # 内存映射
+│   ├── mmap_unix.go     # Unix 平台内存映射
+│   ├── mmap_windows.go  # Windows 平台内存映射
+│   └── simd.go          # SIMD 优化
+├── test/                # 集成测试
+│   ├── cpppo/           # cpppo 兼容性测试
+│   ├── protocol_verifier_test.go # 协议验证测试
+│   ├── access_mode_test.go # 访问模式测试
+│   ├── concurrency_test.go # 并发测试
+│   └── benchmark_test.go # 性能基准测试
+├── doc/                 # 文档
+│   ├── PERFORMANCE_OPTIMIZATION*.md # 性能优化文档
+│   ├── performance_report.json      # 性能报告
+│   └── 2026年5月25日.md # 兼容性审查报告
+├── config.go            # 配置结构（含超时配置）
 ├── context.go           # 上下文生成器
-├── tcp.go              # TCP 连接管理
-├── tcp_pool.go         # TCP 连接池
-├── tag.go              # Tag 操作核心
-├── request.go          # 请求处理
-└── example.go          # 使用示例
+├── doc.go               # Go 文档注释
+├── tcp.go               # TCP 连接管理（含重连机制、监控集成）
+├── tcp_pool.go          # TCP 连接池
+├── tag.go               # Tag 操作核心（含事务性支持）
+├── request.go           # 请求处理（含 ForwardClose）
+├── monitoring.go        # 诊断监控（连接状态、统计指标）
+├── udp.go               # UDP 广播发现
+├── example.go           # 使用示例
+└── go.mod               # Go 模块配置
 ```
 
 ### 核心组件
@@ -391,39 +437,215 @@ ethernet-ip/
 └──────┬──────┘
        │
        ▼
-┌─────────────────────────┐
-│  NewTCPPool()           │  创建连接池
-│  - 设置容量             │
-│  - 配置工厂函数         │
-└──────┬──────────────────┘
+┌─────────────────┐
+│ NewTCPPool()    │  创建连接池
+│ - 指定容量     │
+│ - 初始化连接   │
+└──────┬──────────┘
        │
        ▼
-┌─────────────────────────┐
-│  pool.Get()             │  获取连接
-│  ┌─────────────────────┐│
-│  │ 1. 从通道获取        ││  优先复用
-│  │ 2. 通道为空则创建    ││
-│  │ 3. 调用 Connect()   ││
-│  └─────────────────────┘│
-└──────┬──────────────────┘
+┌─────────────────┐
+│ Get()           │  获取连接
+│ - 从池中获取   │
+│ - 阻塞等待     │
+└──────┬──────────┘
        │
        ▼
-┌─────────────────────────┐
-│  使用连接               │  执行业务操作
-│  - Read/Write Tags      │
-└──────┬──────────────────┘
+┌─────────────────┐
+│  使用连接      │
+│ - Tag 读写    │
+└──────┬──────────┘
        │
        ▼
-┌─────────────────────────┐
-│  pool.Put(conn)         │  归还连接
-│  - 放回通道供复用       │
-└──────┬──────────────────┘
+┌─────────────────┐
+│ Put()           │  归还连接
+│ - 放回池中     │
+└──────┬──────────┘
        │
        ▼
    ┌───────┐
    │完成   │
    └───────┘
 ```
+
+---
+
+## 配置选项
+
+### Config 结构
+
+```go
+type Config struct {
+    TCPPort          uint16        // TCP 端口（默认 44818）
+    UDPPort          uint16        // UDP 端口（默认 44818）
+    Slot             uint8         // 控制器槽位
+    TimeTick         types.USInt   // 连接时间刻度（毫秒）
+    TimeTickOut      types.USInt   // 连接超时（TimeTick 单位）
+    ConnectTimeout   time.Duration // 连接超时（默认 30 秒）
+    ReadTimeout      time.Duration // 读取超时（默认 10 秒）
+    WriteTimeout     time.Duration // 写入超时（默认 10 秒）
+    OperationTimeout time.Duration // 操作超时（默认 15 秒）
+}
+```
+
+### 使用示例
+
+```go
+config := ethernet_ip.DefaultConfig()
+config.ConnectTimeout = time.Second * 60  // 自定义连接超时
+config.ReadTimeout = time.Second * 15     // 自定义读取超时
+
+conn, err := ethernet_ip.NewTCP("192.168.1.10", config)
+```
+
+---
+
+## 诊断监控
+
+### 连接状态
+
+```go
+state := conn.GetConnectionState()
+fmt.Printf("当前状态: %s\n", state.String())
+// 状态值: Disconnected, Connecting, Connected, Reconnecting
+```
+
+### 统计指标
+
+```go
+stats := conn.GetConnectionStats()
+fmt.Printf("连接次数: %d\n", stats.ConnectCount)
+fmt.Printf("断开次数: %d\n", stats.DisconnectCount)
+fmt.Printf("重连次数: %d\n", stats.ReconnectCount)
+fmt.Printf("总请求数: %d\n", stats.TotalRequests)
+fmt.Printf("成功请求数: %d\n", stats.SuccessfulRequests)
+fmt.Printf("失败请求数: %d\n", stats.FailedRequests)
+fmt.Printf("平均响应时间: %v\n", stats.AvgResponseTime)
+fmt.Printf("最小响应时间: %v\n", stats.MinResponseTime)
+fmt.Printf("最大响应时间: %v\n", stats.MaxResponseTime)
+fmt.Printf("总发送字节: %d\n", stats.TotalBytesSent)
+fmt.Printf("总接收字节: %d\n", stats.TotalBytesReceived)
+```
+
+### 事件监听
+
+```go
+// 注册连接状态监听器
+listener := func(event ethernet_ip.ConnectionEvent) {
+    fmt.Printf("[%s] 状态变化: %s\n", 
+        event.Timestamp.Format(time.RFC3339),
+        event.State.String())
+    
+    if event.Error != nil {
+        fmt.Printf("错误: %v\n", event.Error)
+    }
+    
+    // 可以在这里实现告警、日志记录等逻辑
+    if event.State == ethernet_ip.StateDisconnected {
+        log.Warn("连接断开，准备重连...")
+    } else if event.State == ethernet_ip.StateConnected {
+        log.Info("连接已恢复")
+    }
+}
+
+conn.AddConnectionListener(listener)
+
+// 移除监听器
+conn.RemoveConnectionListener(listener)
+```
+
+### 重置统计
+
+```go
+conn.ResetConnectionStats()
+```
+
+---
+
+## UDP 设备发现
+
+### 基本用法
+
+```go
+// 发现网络中的 EIP 设备（默认超时 5 秒）
+devices, err := ethernet_ip.DiscoverDevices(time.Second * 5)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, device := range devices {
+    fmt.Printf("设备名称: %s\n", device.DeviceName)
+    fmt.Printf("IP地址: %s\n", device.IPAddress)
+    fmt.Printf("MAC地址: %s\n", device.MacAddress)
+    fmt.Printf("产品代码: %d\n", device.ProductCode)
+    fmt.Printf("序列号: %d\n", device.SerialNumber)
+    fmt.Printf("供应商ID: %d\n", device.VendorID)
+    fmt.Printf("版本: %d.%d\n", device.RevisionMajor, device.RevisionMinor)
+    fmt.Println("---")
+}
+```
+
+### 指定端口
+
+```go
+// 使用自定义端口进行设备发现
+devices, err := ethernet_ip.DiscoverDevicesWithPort(time.Second * 5, 44818)
+```
+
+### DiscoveredDevice 结构
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| IPAddress | net.IP | 设备 IP 地址 |
+| MacAddress | string | MAC 地址 |
+| DeviceName | string | 设备名称 |
+| ProductCode | uint16 | 产品代码 |
+| RevisionMajor | uint8 | 主版本号 |
+| RevisionMinor | uint8 | 次版本号 |
+| Status | uint16 | 设备状态 |
+| SerialNumber | uint32 | 序列号 |
+| VendorID | uint16 | 供应商 ID |
+
+---
+
+## 事务性支持
+
+### TagGroup 原子写入
+
+```go
+// 创建 TagGroup 并启用事务性
+group := ethernet_ip.NewTagGroup(nil)
+group.AtomicWrite = true  // 启用原子写入模式
+
+// 添加多个 Tag
+group.Add(tag1)
+group.Add(tag2)
+group.Add(tag3)
+
+// 设置新值
+tag1.SetInt32(100)
+tag2.SetString("test")
+tag3.SetFloat32(3.14)
+
+// 执行批量写入（事务性）
+err := group.Write()
+if err != nil {
+    // 如果任何一个写入失败，所有标签的 changed 状态都会恢复
+    log.Printf("写入失败，已回滚: %v\n", err)
+} else {
+    log.Println("所有标签写入成功")
+}
+```
+
+### 事务性原理
+
+当 `AtomicWrite` 启用时，`TagGroup.Write()` 会：
+
+1. 收集所有待写入的标签
+2. 发送批量写入请求
+3. 检查每个响应的状态码
+4. 如果任何一个写入失败，恢复所有标签的 `changed` 状态
+5. 只有所有写入都成功，才更新标签的值
 
 ---
 
@@ -695,6 +917,34 @@ cpppo 兼容验证结果汇总: 通过=19, 失败=0
 
 ## API 参考
 
+### 配置选项
+
+#### Config 结构
+
+```go
+type Config struct {
+    TCPPort          uint16        // TCP 端口（默认 44818）
+    UDPPort          uint16        // UDP 端口（默认 44818）
+    Slot             uint8         // 控制器槽位
+    TimeTick         types.USInt   // 连接时间刻度（毫秒）
+    TimeTickOut      types.USInt   // 连接超时（TimeTick 单位）
+    ConnectTimeout   time.Duration // 连接超时（默认 30 秒）
+    ReadTimeout      time.Duration // 读取超时（默认 10 秒）
+    WriteTimeout     time.Duration // 写入超时（默认 10 秒）
+    OperationTimeout time.Duration // 操作超时（默认 15 秒）
+}
+```
+
+#### DefaultConfig() *Config
+
+获取默认配置。
+
+```go
+config := DefaultConfig()
+config.ConnectTimeout = time.Second * 60  // 自定义连接超时
+conn, err := NewTCP("192.168.1.10", config)
+```
+
 ### TCP 连接管理
 
 #### NewTCP(address string, config *Config) (*EIPTCP, error)
@@ -718,6 +968,16 @@ if err != nil {
     log.Fatal(err)
 }
 defer conn.Close()
+```
+
+#### IsConnected() bool
+
+检查连接是否已建立且会话已注册。
+
+```go
+if conn.IsConnected() {
+    log.Println("连接已建立")
+}
 ```
 
 #### Close() error
@@ -892,6 +1152,149 @@ err := group.Read()
 ```go
 tag1.SetInt32(100)
 tag2.SetString("updated")
+err := group.Write()
+```
+
+### 批量数据包操作
+
+#### BatchRead(count int) ([]*Packet, error)
+
+从连接批量读取多个数据包。
+
+```go
+packets, err := conn.BatchRead(10)
+if err != nil {
+    log.Fatal(err)
+}
+for _, p := range packets {
+    // 处理每个数据包
+}
+```
+
+#### BatchWrite(packets []*Packet) error
+
+批量写入多个数据包到连接。
+
+```go
+packets := []*packet.Packet{packet1, packet2, packet3}
+err := conn.BatchWrite(packets)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### 诊断监控
+
+#### GetConnectionState() ConnectionState
+
+获取当前连接状态。
+
+```go
+state := conn.GetConnectionState()
+fmt.Printf("连接状态: %s\n", state.String())
+// 输出: Connected, Disconnected, Connecting, Reconnecting
+```
+
+#### GetConnectionStats() ConnectionStats
+
+获取连接统计信息。
+
+```go
+stats := conn.GetConnectionStats()
+fmt.Printf("连接次数: %d\n", stats.ConnectCount)
+fmt.Printf("断开次数: %d\n", stats.DisconnectCount)
+fmt.Printf("重连次数: %d\n", stats.ReconnectCount)
+fmt.Printf("总请求数: %d\n", stats.TotalRequests)
+fmt.Printf("成功请求数: %d\n", stats.SuccessfulRequests)
+fmt.Printf("平均响应时间: %v\n", stats.AvgResponseTime)
+```
+
+#### AddConnectionListener(listener ConnectionEventListener)
+
+注册连接状态变化监听器。
+
+```go
+listener := func(event ConnectionEvent) {
+    fmt.Printf("状态变化: %s -> %s\n", 
+        event.State.String(), 
+        event.Timestamp.Format(time.RFC3339))
+    if event.Error != nil {
+        fmt.Printf("错误: %v\n", event.Error)
+    }
+}
+conn.AddConnectionListener(listener)
+```
+
+#### ResetConnectionStats()
+
+重置连接统计信息。
+
+```go
+conn.ResetConnectionStats()
+```
+
+### UDP 设备发现
+
+#### DiscoverDevices(timeout time.Duration) ([]*DiscoveredDevice, error)
+
+广播发现网络中的 EIP 设备。
+
+```go
+devices, err := ethernet_ip.DiscoverDevices(time.Second * 5)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, device := range devices {
+    fmt.Printf("设备名称: %s\n", device.DeviceName)
+    fmt.Printf("IP地址: %s\n", device.IPAddress)
+    fmt.Printf("MAC地址: %s\n", device.MacAddress)
+    fmt.Printf("产品代码: %d\n", device.ProductCode)
+    fmt.Printf("序列号: %d\n", device.SerialNumber)
+}
+```
+
+#### DiscoverDevicesWithPort(timeout time.Duration, port int) ([]*DiscoveredDevice, error)
+
+指定端口进行设备发现。
+
+```go
+devices, err := ethernet_ip.DiscoverDevicesWithPort(time.Second * 5, 44818)
+```
+
+#### DiscoveredDevice 结构
+
+```go
+type DiscoveredDevice struct {
+    IPAddress     net.IP   // 设备 IP 地址
+    MacAddress    string   // MAC 地址
+    DeviceName    string   // 设备名称
+    ProductCode   uint16   // 产品代码
+    RevisionMajor uint8    // 主版本号
+    RevisionMinor uint8    // 次版本号
+    Status        uint16   // 设备状态
+    SerialNumber  uint32   // 序列号
+    VendorID      uint16   // 供应商 ID
+}
+```
+
+### TagGroup 事务性支持
+
+#### AtomicWrite 字段
+
+启用原子写入模式，确保批量写入的原子性。
+
+```go
+group := ethernet_ip.NewTagGroup(nil)
+group.AtomicWrite = true  // 启用事务性写入
+
+group.Add(tag1)
+group.Add(tag2)
+
+tag1.SetInt32(100)
+tag2.SetInt32(200)
+
+// 如果任何一个写入失败，所有标签的 changed 状态都会恢复
 err := group.Write()
 ```
 
@@ -1462,6 +1865,44 @@ go test -bench=. -benchmem ./benchmark/... > doc/BENCHMARK_RESULT.md
 ---
 
 ## 版本更新
+
+### v0.0.6 (2026-05-25)
+
+**新增功能**
+- 新增 **STRING 写入优化** - 简化字符串写入逻辑，单次请求完成
+- 新增 **超时配置** - 支持连接超时、读取超时、写入超时、操作超时
+- 新增 **性能基准测试** - 添加完整的性能测试套件
+- 新增 **事务性支持** - TagGroup 原子写入，失败自动回滚
+- 新增 **诊断监控** - 连接状态监控、统计指标收集、事件监听
+- 新增 **UDP 广播发现** - 设备自动发现功能
+- 新增 **ForwardClose** - 连接关闭方法，避免资源泄漏
+- 新增 **指数退避重连** - 优化重连机制，避免服务器压力
+
+**Bug 修复**
+- 修复字符串写入需要两次请求的问题
+- 修复重连间隔为 0 的问题
+
+**文档更新**
+- 更新架构目录结构
+- 添加新功能 API 文档
+- 更新兼容性审查报告
+
+### v0.0.5 (2026-05-22)
+
+**Bug 修复**
+- 修复 TCP 连接异常断开后的重连逻辑
+- 修复 ReadFromFile/WriteToFile 方法未实现的占位错误处理
+- 修复 BatchRead/BatchWrite 方法文档缺失
+
+**新增功能**
+- 新增 `IsConnected()` 方法，用于检查连接状态
+- 新增重连机制（最多重试 3 次）
+- 新增 `BatchRead()` 和 `BatchWrite()` 批量数据包操作方法
+- 完善文档注释，补充 doc.go 完整 API 文档
+
+**性能优化**
+- 优化 TCP 缓冲区复用策略
+- 优化连接池获取/归还逻辑
 
 ### v0.0.4 (2026-05-19)
 
