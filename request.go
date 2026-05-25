@@ -368,11 +368,14 @@ func (t *EIPTCP) ForwardClose() error {
 	), io.Bytes())
 
 	_, err := t.SendRRData(packet.NewUCMM(mr), 10)
+	if err != nil {
+		return err
+	}
 
 	t.connID = 0
 	t.seqNum = 0
 
-	return err
+	return nil
 }
 
 // WriteClass2Attribute 使用 Set Attribute Single 服务写入 Class 2 对象的属性
